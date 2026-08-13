@@ -14,18 +14,6 @@
 </head>
 <body class="dark-theme flex-center-body">
 
-    <!-- FLOATING STEALTH CONTROLS -->
-    <div class="stealth-controls">
-        <div class="account-badge-stealth">
-            <span class="status-dot online"></span>
-            <span id="accountName">HEROFX (LIVE)</span>
-            <select id="accountSelect" class="account-select"></select>
-        </div>
-        <button class="stealth-btn" id="openLoginBtn" title="TradeLocker Connection">
-            <i data-lucide="key-round"></i>
-        </button>
-    </div>
-
     <!-- POKEMON / MTG COLLECTIBLE TRADING CARD -->
     <div class="trading-card-standalone">
         <div class="pokemon-card-wrapper" id="cardWrapper">
@@ -46,11 +34,10 @@
                     </div>
                 </div>
 
-                <!-- Card Illustration Art -->
+                <!-- Card Illustration Art (Dynamic Pokémon Mood Art) -->
                 <div class="card-art-frame">
-                    <img src="nas100_art.jpg" alt="NAS100 Art" class="card-art-img">
+                    <img src="art_red_double.jpg" alt="NAS100 Mood Art" class="card-art-img" id="cardArtImg">
                     <div class="card-art-overlay"></div>
-                    <div class="card-art-badge" id="cardArtBadge">NO. 812189 • US TECH 100</div>
                 </div>
 
                 <!-- Card Moves Box -->
@@ -134,43 +121,6 @@
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
-
-    <!-- Login Credentials Modal -->
-    <div class="modal-overlay" id="loginModal">
-        <div class="modal-card">
-            <div class="modal-header">
-                <h3><i data-lucide="lock"></i> TradeLocker Account Connection</h3>
-                <button class="close-btn" id="closeLoginBtn">&times;</button>
-            </div>
-            <form id="loginForm">
-                <div class="form-group">
-                    <label>TradeLocker Environment</label>
-                    <select id="loginEnv" class="form-input">
-                        <option value="live" selected>Live (live.tradelocker.com)</option>
-                        <option value="demo">Demo (demo.tradelocker.com)</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Server Name</label>
-                    <input type="text" id="loginServer" class="form-input" value="HEROFX" required placeholder="e.g. HEROFX">
-                </div>
-                <div class="form-group">
-                    <label>Email Address</label>
-                    <input type="email" id="loginEmail" class="form-input" value="jcollins92989@gmail.com" required>
-                </div>
-                <div class="form-group">
-                    <label>Password</label>
-                    <input type="password" id="loginPassword" class="form-input" value="Pook&Buh9" required>
-                </div>
-
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary" id="connectBtn">
-                        <i data-lucide="plug"></i> Connect & Fetch Portfolio
-                    </button>
-                </div>
-            </form>
         </div>
     </div>
 

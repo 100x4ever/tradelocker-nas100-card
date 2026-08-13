@@ -37,7 +37,7 @@ body {
     font-family: var(--font-main);
     min-height: 100vh;
     overflow-x: hidden;
-    line-height: 1.5;
+    line-height: 1.4;
 }
 
 .flex-center-body {
@@ -45,107 +45,39 @@ body {
     justify-content: center;
     align-items: center;
     min-height: 100vh;
-    padding: 24px;
+    padding: 12px;
     background: radial-gradient(circle at center, #111827 0%, #060911 100%);
-    position: relative;
-}
-
-/* STEALTH CONTROLS IN CORNER */
-.stealth-controls {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    z-index: 100;
-}
-
-.account-badge-stealth {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 12px;
-    background: rgba(18, 24, 38, 0.8);
-    backdrop-filter: blur(8px);
-    border: 1px solid var(--border-bright);
-    border-radius: 20px;
-    font-size: 12px;
-}
-
-.account-select {
-    background: var(--bg-card);
-    border: 1px solid var(--border-bright);
-    color: var(--accent-cyan);
-    font-family: var(--font-mono);
-    font-size: 12px;
-    font-weight: 600;
-    padding: 2px 6px;
-    border-radius: 6px;
-    outline: none;
-    cursor: pointer;
-}
-
-.status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-}
-.status-dot.online {
-    background-color: var(--color-green);
-    box-shadow: 0 0 8px var(--color-green);
-}
-
-.stealth-btn {
-    background: rgba(18, 24, 38, 0.8);
-    border: 1px solid var(--border-bright);
-    color: var(--text-secondary);
-    padding: 8px;
-    border-radius: 50%;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-}
-
-.stealth-btn:hover {
-    color: #fff;
-    background: var(--border-bright);
 }
 
 /* ========================================================= */
-/* STANDALONE POKEMON / MTG TRADING CARD                     */
+/* STANDALONE POKEMON / MTG TRADING CARD (MOBILE OPTIMIZED)   */
 /* ========================================================= */
 
 .trading-card-standalone {
     display: flex;
     justify-content: center;
-    perspective: 1000px;
     width: 100%;
+    max-width: 410px;
+    margin: 0 auto;
 }
 
 .pokemon-card-wrapper {
     width: 100%;
-    max-width: 460px;
     position: relative;
-    transition: transform 0.15s ease-out;
-    transform-style: preserve-3d;
-    cursor: pointer;
 }
 
 .pokemon-card-inner {
     background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
-    border: 6px solid #fbbf24;
-    border-radius: 24px;
-    padding: 16px;
+    border: 5px solid #fbbf24;
+    border-radius: 20px;
+    padding: 14px;
     display: flex;
     flex-direction: column;
     gap: 10px;
     box-shadow: 
         0 0 0 2px #78350f,
-        0 20px 60px rgba(0, 0, 0, 0.85),
-        0 0 35px rgba(245, 158, 11, 0.35);
+        0 16px 40px rgba(0, 0, 0, 0.85),
+        0 0 30px rgba(245, 158, 11, 0.3);
     position: relative;
     overflow: hidden;
 }
@@ -173,75 +105,80 @@ body {
     100% { transform: translateY(50%) rotate(360deg); }
 }
 
-/* Card Header */
+/* Card Header Bar (No Overlapping Text) */
 .card-header-bar {
     display: flex;
     justify-content: space-between;
     align-items: center;
     background: linear-gradient(90deg, #92400e, #b45309, #d97706);
-    padding: 8px 14px;
-    border-radius: 12px;
-    border: 2px solid #fef08a;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1.5px solid #fef08a;
     box-shadow: inset 0 2px 4px rgba(255,255,255,0.4);
 }
 
 .card-identity {
     display: flex;
     flex-direction: column;
+    min-width: 0;
 }
 
 .card-stage {
-    font-size: 9px;
+    font-size: 8.5px;
     font-weight: 800;
-    letter-spacing: 1px;
+    letter-spacing: 0.8px;
     color: #fef3c7;
     text-transform: uppercase;
 }
 
 .card-title {
     font-family: var(--font-card-title);
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 900;
     color: #ffffff;
     text-shadow: 1px 2px 4px rgba(0, 0, 0, 0.8);
-    letter-spacing: 0.5px;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .card-hp-group {
     display: flex;
     align-items: baseline;
-    gap: 4px;
-    background: rgba(0,0,0,0.3);
+    gap: 3px;
+    background: rgba(0,0,0,0.4);
     padding: 3px 8px;
-    border-radius: 20px;
+    border-radius: 16px;
     border: 1px solid rgba(255,255,255,0.3);
+    flex-shrink: 0;
 }
 
 .hp-label {
-    font-size: 9px;
+    font-size: 8.5px;
     font-weight: 800;
     color: #fef08a;
 }
 
 .hp-val {
     font-family: var(--font-mono);
-    font-size: 17px;
+    font-size: 15px;
     font-weight: 800;
     color: #ffffff;
     text-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
 }
 
 .element-symbol {
-    font-size: 15px;
+    font-size: 13px;
 }
 
 /* Card Artwork Frame */
 .card-art-frame {
     position: relative;
     width: 100%;
-    height: 200px;
-    border-radius: 14px;
-    border: 4px solid #f59e0b;
+    height: 180px;
+    border-radius: 12px;
+    border: 3.5px solid #f59e0b;
     overflow: hidden;
     box-shadow: inset 0 0 16px rgba(0,0,0,0.8), 0 4px 12px rgba(0,0,0,0.5);
 }
@@ -251,52 +188,34 @@ body {
     height: 100%;
     object-fit: cover;
     display: block;
-    transition: transform 0.5s ease;
-}
-
-.pokemon-card-wrapper:hover .card-art-img {
-    transform: scale(1.05);
+    transition: opacity 0.3s ease;
 }
 
 .card-art-overlay {
     position: absolute;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: linear-gradient(180deg, transparent 60%, rgba(15, 23, 42, 0.9) 100%);
+    background: linear-gradient(180deg, transparent 70%, rgba(15, 23, 42, 0.7) 100%);
     pointer-events: none;
-}
-
-.card-art-badge {
-    position: absolute;
-    bottom: 8px;
-    right: 8px;
-    background: rgba(0, 0, 0, 0.75);
-    border: 1px solid #f59e0b;
-    padding: 3px 8px;
-    border-radius: 6px;
-    font-size: 10px;
-    font-family: var(--font-mono);
-    color: #fef08a;
-    font-weight: 700;
 }
 
 /* Card Moves Box */
 .card-moves-box {
     background: rgba(15, 23, 42, 0.9);
-    border: 2px solid #334155;
-    border-radius: 14px;
-    padding: 10px;
+    border: 1.5px solid #334155;
+    border-radius: 12px;
+    padding: 8px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 7px;
 }
 
 .move-row {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 7px 10px;
+    padding: 6px 8px;
     background: rgba(30, 41, 59, 0.6);
-    border-radius: 10px;
+    border-radius: 8px;
     border: 1px solid rgba(255,255,255,0.05);
 }
 
@@ -304,19 +223,21 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 30px;
-    height: 30px;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
     background: linear-gradient(135deg, #334155, #1e293b);
     border: 1.5px solid #f59e0b;
-    font-size: 15px;
+    font-size: 14px;
     box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    flex-shrink: 0;
 }
 
 .move-info {
     flex: 1;
     display: flex;
     flex-direction: column;
+    min-width: 0;
 }
 
 .move-header {
@@ -326,14 +247,14 @@ body {
 }
 
 .move-name {
-    font-size: 13px;
+    font-size: 12.5px;
     font-weight: 700;
     color: #f1f5f9;
 }
 
 .move-pnl {
     font-family: var(--font-mono);
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 800;
 }
 
@@ -342,7 +263,7 @@ body {
 .move-pnl.highlight { color: #60a5fa; }
 
 .move-desc {
-    font-size: 11px;
+    font-size: 10.5px;
     color: var(--text-secondary);
 }
 
@@ -356,21 +277,15 @@ body {
     width: 100%;
     background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
     border: 2px solid #fca5a5;
-    border-radius: 12px;
-    padding: 10px 14px;
+    border-radius: 10px;
+    padding: 9px 12px;
     color: #ffffff;
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 12px;
-    box-shadow: 0 4px 16px rgba(220, 38, 38, 0.4);
-    transition: all 0.2s ease;
-}
-
-.card-attack-btn:hover {
-    background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
-    transform: scale(1.02);
-    box-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
+    gap: 10px;
+    box-shadow: 0 4px 14px rgba(220, 38, 38, 0.4);
+    transition: all 0.15s ease;
 }
 
 .card-attack-btn:active {
@@ -378,7 +293,7 @@ body {
 }
 
 .attack-icon {
-    font-size: 20px;
+    font-size: 18px;
 }
 
 .attack-text {
@@ -389,14 +304,14 @@ body {
 
 .attack-title {
     font-family: var(--font-card-title);
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 900;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.4px;
     text-shadow: 0 1px 2px rgba(0,0,0,0.8);
 }
 
 .attack-sub {
-    font-size: 10px;
+    font-size: 9.5px;
     font-weight: 600;
     color: #fecaca;
 }
@@ -405,11 +320,11 @@ body {
 .card-weakness-bar {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
+    gap: 6px;
     background: #0f172a;
     border: 1px solid #334155;
-    padding: 8px;
-    border-radius: 10px;
+    padding: 6px;
+    border-radius: 8px;
     text-align: center;
 }
 
@@ -419,14 +334,14 @@ body {
 }
 
 .stat-pill .lbl {
-    font-size: 9px;
+    font-size: 8.5px;
     font-weight: 800;
     color: var(--text-muted);
 }
 
 .stat-pill .val {
     font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: 10.5px;
     font-weight: 700;
     color: #fbbf24;
 }
@@ -435,139 +350,41 @@ body {
 .card-footer {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 3px;
     text-align: center;
 }
 
 .flavor-text {
     font-style: italic;
-    font-size: 10.5px;
+    font-size: 10px;
     color: #94a3b8;
-    line-height: 1.3;
+    line-height: 1.25;
 }
 
 .card-rarity-row {
     display: flex;
     justify-content: space-between;
-    font-size: 9px;
+    font-size: 8.5px;
     font-weight: 800;
     color: #fbbf24;
     font-family: var(--font-mono);
     border-top: 1px solid rgba(255,255,255,0.1);
-    padding-top: 4px;
+    padding-top: 3px;
 }
 
-/* Modal */
-.modal-overlay {
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0, 0, 0, 0.75);
-    backdrop-filter: blur(8px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.25s ease;
-}
-
-.modal-overlay.open {
-    opacity: 1;
-    pointer-events: auto;
-}
-
-.modal-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border-bright);
-    width: 100%;
-    max-width: 440px;
-    border-radius: 20px;
-    padding: 28px;
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
-}
-
-.modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.modal-header h3 {
-    font-size: 18px;
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.close-btn {
-    background: transparent;
-    border: none;
-    color: var(--text-muted);
-    font-size: 24px;
-    cursor: pointer;
-}
-
-.form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-bottom: 14px;
-}
-
-.form-group label {
-    font-size: 13px;
-    color: var(--text-secondary);
-    font-weight: 500;
-}
-
-.form-input {
-    background: var(--bg-main);
-    border: 1px solid var(--border-color);
-    border-radius: 10px;
-    padding: 10px 14px;
-    color: var(--text-primary);
-    font-family: var(--font-main);
-    font-size: 14px;
-    outline: none;
-}
-
-.btn {
-    padding: 10px 18px;
-    border-radius: 10px;
-    font-family: var(--font-main);
-    font-weight: 600;
-    font-size: 14px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    border: none;
-    transition: all 0.2s ease;
-}
-
-.btn-primary {
-    background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
-    color: #fff;
-    width: 100%;
-    justify-content: center;
-    box-shadow: 0 4px 16px var(--accent-blue-glow);
-}
-
-.btn-secondary {
-    background: var(--bg-elevated);
-    color: var(--text-primary);
-    border: 1px solid var(--border-bright);
-}
-
-.spin-icon {
-    animation: spin 3s linear infinite;
-}
-
-@keyframes spin {
-    100% { transform: rotate(360deg); }
+/* Small smartphone responsive tuning */
+@media (max-width: 380px) {
+    .pokemon-card-inner {
+        padding: 10px;
+        gap: 8px;
+    }
+    .card-art-frame {
+        height: 150px;
+    }
+    .card-title {
+        font-size: 12.5px;
+    }
+    .hp-val {
+        font-size: 13px;
+    }
 }
