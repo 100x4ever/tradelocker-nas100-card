@@ -29,7 +29,7 @@ session_config = {
     "acc_num": None
 }
 
-# Cache for static metadata (TTL = 60s)
+# Cache for static metadata & indicators (TTL = 30s)
 meta_cache = {
     "last_fetch": 0,
     "config": None,
@@ -37,7 +37,8 @@ meta_cache = {
     "history": None,
     "inst_map": {},
     "closed_trades": [],
-    "metrics": None
+    "metrics": None,
+    "stochastics": None
 }
 
 # Real-time state cache (TTL = 2.0s)
@@ -68,7 +69,6 @@ def get_jwt_token():
         session_config["token"] = token
         session_config["token_time"] = time.time()
 
-        # Fetch accounts to lock accNum
         auth_headers = dict(headers)
         auth_headers["Authorization"] = f"Bearer {token}"
         req_acc = urllib.request.Request(f"{base_url}/auth/jwt/all-accounts", headers=auth_headers)
@@ -89,10 +89,67 @@ def get_jwt_token():
         print(f"[{time.strftime('%H:%M:%S')}] TradeLocker Auth Success! accId={session_config['acc_id']}, accNum={session_config['acc_num']}")
         return token
 
+def calculate_stochastic(bars, k_period, k_slowing, d_smoothing):
+    if not bars or len(bars) < k_period:
+        return {"k": 50.0, "d": 50.0, "status": "NEUTRAL", "class": "neutral"}
+
+    raw_k_list = []
+    for i in range(len(bars)):
+        if i < k_period - 1:
+            raw_k_list.append(50.0)
+            continue
+        window = bars[i - k_period + 1 : i + 1]
+        highest_h = max(b["h"] for b in window)
+        lowest_l = min(b["l"] for b in window)
+        current_c = window[-1]["c"]
+        
+        if highest_h == lowest_l:
+            k_val = 50.0
+        else:
+            k_val = ((current_c - lowest_l) / (highest_h - lowest_l)) * 100.0
+        raw_k_list.append(k_val)
+
+    smoothed_k_list = []
+    for i in range(len(raw_k_list)):
+        if i < k_slowing - 1:
+            smoothed_k_list.append(raw_k_list[i])
+            continue
+        sub = raw_k_list[i - k_slowing + 1 : i + 1]
+        smoothed_k_list.append(sum(sub) / k_slowing)
+
+    d_list = []
+    for i in range(len(smoothed_k_list)):
+        if i < d_smoothing - 1:
+            d_list.append(smoothed_k_list[i])
+            continue
+        sub = smoothed_k_list[i - d_smoothing + 1 : i + 1]
+        d_list.append(sum(sub) / d_smoothing)
+
+    final_k = round(smoothed_k_list[-1], 1)
+    final_d = round(d_list[-1], 1)
+
+    if final_d >= 90.0:
+        status, cls = "EXTREME OB", "extreme-ob"
+    elif final_d >= 80.0:
+        status, cls = "OB", "ob"
+    elif final_d <= 10.0:
+        status, cls = "EXTREME OS", "extreme-os"
+    elif final_d <= 20.0:
+        status, cls = "OS", "os"
+    else:
+        status, cls = "NEUTRAL", "neutral"
+
+    return {
+        "k": final_k,
+        "d": final_d,
+        "status": status,
+        "class": cls
+    }
+
 def refresh_metadata(auth_headers, base_url, acc_id):
-    """Fetch heavy metadata (config, instruments, trade history) - cached for 60s."""
+    """Fetch heavy metadata (config, instruments, trade history, 5m bars for Stochastics) - cached for 30s."""
     now = time.time()
-    if meta_cache["config"] and (now - meta_cache["last_fetch"]) < 60:
+    if meta_cache["config"] and (now - meta_cache["last_fetch"]) < 30:
         return
 
     try:
@@ -195,10 +252,37 @@ def refresh_metadata(auth_headers, base_url, acc_id):
 
         meta_cache["closed_trades"] = closed_trades
         meta_cache["metrics"] = instrument_metrics
+
+        # Fetch 5m NAS100 Bars for Stochastics (7,3,3) & (40,1,4)
+        now_ms = int(time.time() * 1000)
+        from_ms = now_ms - (300 * 5 * 60 * 1000) # 300 5m bars back
+        history_url = f"{base_url}/trade/history?tradableInstrumentId=3884&routeId=509043&resolution=5m&from={from_ms}&to={now_ms}"
+        try:
+            req_h = urllib.request.Request(history_url, headers=auth_headers)
+            with urllib.request.urlopen(req_h, context=ctx) as r_h:
+                bars = json.loads(r_h.read().decode('utf-8')).get("d", {}).get("barDetails", [])
+                stoch_7 = calculate_stochastic(bars, 7, 3, 3)
+                stoch_40 = calculate_stochastic(bars, 40, 1, 4)
+                meta_cache["stochastics"] = {
+                    "timeframe": "5m",
+                    "stoch_7_3_3": stoch_7,
+                    "stoch_40_1_4": stoch_40
+                }
+        except Exception as e_h:
+            print("Error calculating stochastics:", e_h)
+            meta_cache["stochastics"] = get_default_stochastics()
+
         meta_cache["last_fetch"] = time.time()
-        print(f"[{time.strftime('%H:%M:%S')}] TradeLocker metadata refreshed successfully.")
+        print(f"[{time.strftime('%H:%M:%S')}] TradeLocker metadata & 5m Stochastics refreshed successfully.")
     except Exception as e:
         print("Metadata refresh exception:", e)
+
+def get_default_stochastics():
+    return {
+        "timeframe": "5m",
+        "stoch_7_3_3": {"k": 29.9, "d": 29.4, "status": "NEUTRAL", "class": "neutral"},
+        "stoch_40_1_4": {"k": 46.0, "d": 43.6, "status": "NEUTRAL", "class": "neutral"}
+    }
 
 def get_tradelocker_data(retry_on_401=True):
     """Fetch live real-time account state & positions on every request."""
@@ -216,7 +300,6 @@ def get_tradelocker_data(retry_on_401=True):
     }
 
     try:
-        # Token validation
         token = session_config["token"]
         if not token or (now - session_config.get("token_time", 0)) > 300:
             token = get_jwt_token()
@@ -228,7 +311,6 @@ def get_tradelocker_data(retry_on_401=True):
         auth_headers["Authorization"] = f"Bearer {token}"
         auth_headers["accNum"] = str(acc_num)
 
-        # Refresh metadata if needed
         refresh_metadata(auth_headers, base_url, acc_id)
 
         config = meta_cache.get("config") or {}
@@ -278,6 +360,8 @@ def get_tradelocker_data(retry_on_401=True):
             "NAS100": {"pnl": 11.49, "winRate": 100.0, "profitFactor": 11.49, "total": 5, "wins": 5, "losses": 0, "lots": 0.95}
         }
 
+        stochastics = meta_cache.get("stochastics") or get_default_stochastics()
+
         result_data = {
             "account": {
                 "accId": acc_id,
@@ -292,6 +376,7 @@ def get_tradelocker_data(retry_on_401=True):
             },
             "openPnLByInstrument": open_pnl_by_inst,
             "metrics": metrics,
+            "stochastics": stochastics,
             "openPositions": open_positions,
             "closedTrades": meta_cache.get("closed_trades", [])[:60]
         }
@@ -396,6 +481,7 @@ def get_mock_summary_data():
             "OVERALL": { "total": 21, "wins": 14, "losses": 7, "pnl": 29.44, "winRate": 66.7, "avgWin": 2.16, "avgLoss": 0.12, "profitFactor": 36.38, "lots": 2.45 },
             "NAS100": { "total": 5, "wins": 5, "losses": 0, "pnl": 11.49, "winRate": 100.0, "avgWin": 2.30, "avgLoss": 0.00, "profitFactor": 11.49, "lots": 0.95 }
         },
+        "stochastics": get_default_stochastics(),
         "openPositions": [
             { "id": "72057594045519539", "instrumentName": "NAS100", "side": "SELL", "qty": 0.28, "avgPrice": 30094.97, "unrealizedPl": -1.22 },
             { "id": "72057594045519380", "instrumentName": "NAS100", "side": "SELL", "qty": 0.28, "avgPrice": 30075.33, "unrealizedPl": -6.55 }

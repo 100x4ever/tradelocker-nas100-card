@@ -57,7 +57,7 @@ body {
     display: flex;
     justify-content: center;
     width: 100%;
-    max-width: 410px;
+    max-width: 415px;
     margin: 0 auto;
 }
 
@@ -70,10 +70,10 @@ body {
     background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
     border: 5px solid #fbbf24;
     border-radius: 20px;
-    padding: 14px;
+    padding: 13px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
     box-shadow: 
         0 0 0 2px #78350f,
         0 16px 40px rgba(0, 0, 0, 0.85),
@@ -111,7 +111,7 @@ body {
     justify-content: space-between;
     align-items: center;
     background: linear-gradient(90deg, #92400e, #b45309, #d97706);
-    padding: 8px 12px;
+    padding: 7px 11px;
     border-radius: 10px;
     border: 1.5px solid #fef08a;
     box-shadow: inset 0 2px 4px rgba(255,255,255,0.4);
@@ -133,7 +133,7 @@ body {
 
 .card-title {
     font-family: var(--font-card-title);
-    font-size: 17px;
+    font-size: 16.5px;
     font-weight: 900;
     color: #ffffff;
     text-shadow: 1px 2px 4px rgba(0, 0, 0, 0.8);
@@ -173,7 +173,7 @@ body {
 .card-art-frame {
     position: relative;
     width: 100%;
-    height: 270px;
+    height: 250px;
     border-radius: 14px;
     border: 3.5px solid #f59e0b;
     overflow: hidden;
@@ -200,16 +200,16 @@ body {
     background: rgba(15, 23, 42, 0.9);
     border: 1.5px solid #334155;
     border-radius: 12px;
-    padding: 8px;
+    padding: 7px;
     display: flex;
     flex-direction: column;
-    gap: 7px;
+    gap: 6px;
 }
 
 .move-row {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 9px;
     padding: 6px 8px;
     background: rgba(30, 41, 59, 0.6);
     border-radius: 8px;
@@ -220,12 +220,12 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: 26px;
+    height: 26px;
     border-radius: 50%;
     background: linear-gradient(135deg, #334155, #1e293b);
     border: 1.5px solid #f59e0b;
-    font-size: 14px;
+    font-size: 13.5px;
     box-shadow: 0 2px 6px rgba(0,0,0,0.4);
     flex-shrink: 0;
 }
@@ -241,17 +241,19 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 4px;
 }
 
 .move-name {
-    font-size: 12.5px;
+    font-size: 12px;
     font-weight: 700;
     color: #f1f5f9;
+    white-space: nowrap;
 }
 
 .move-pnl {
     font-family: var(--font-mono);
-    font-size: 15px;
+    font-size: 14.5px;
     font-weight: 800;
 }
 
@@ -260,8 +262,79 @@ body {
 .move-pnl.highlight { color: #60a5fa; }
 
 .move-desc {
-    font-size: 10.5px;
+    font-size: 10px;
     color: var(--text-secondary);
+}
+
+/* STOCHASTIC ORACLE DISPLAY STYLING */
+.stoch-readouts {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.stoch-tag {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: #cbd5e1;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    background: rgba(15, 23, 42, 0.7);
+    padding: 2px 6px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.08);
+}
+
+.stoch-badge {
+    font-size: 9px;
+    font-weight: 800;
+    padding: 1px 5px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.stoch-badge.neutral {
+    background: rgba(100, 116, 139, 0.2);
+    color: #94a3b8;
+    border: 1px solid #475569;
+}
+
+.stoch-badge.ob {
+    background: rgba(249, 115, 22, 0.25);
+    color: #fb923c;
+    border: 1px solid #f97316;
+}
+
+.stoch-badge.extreme-ob {
+    background: rgba(239, 68, 68, 0.35);
+    color: #fca5a5;
+    border: 1px solid #ef4444;
+    animation: flashPulseRed 1s infinite alternate;
+}
+
+.stoch-badge.os {
+    background: rgba(16, 185, 129, 0.25);
+    color: #34d399;
+    border: 1px solid #10b981;
+}
+
+.stoch-badge.extreme-os {
+    background: rgba(16, 185, 129, 0.35);
+    color: #6ee7b7;
+    border: 1px solid #10b981;
+    animation: flashPulseGreen 1s infinite alternate;
+}
+
+@keyframes flashPulseRed {
+    0% { background: rgba(239, 68, 68, 0.3); box-shadow: 0 0 4px rgba(239, 68, 68, 0.4); }
+    100% { background: rgba(239, 68, 68, 0.75); box-shadow: 0 0 12px rgba(239, 68, 68, 0.9); color: #ffffff; }
+}
+
+@keyframes flashPulseGreen {
+    0% { background: rgba(16, 185, 129, 0.3); box-shadow: 0 0 4px rgba(16, 185, 129, 0.4); }
+    100% { background: rgba(16, 185, 129, 0.75); box-shadow: 0 0 12px rgba(16, 185, 129, 0.9); color: #ffffff; }
 }
 
 /* SPECIAL ATTACK BUTTON: CLOSE ALL NAS100 */
@@ -320,7 +393,7 @@ body {
     gap: 6px;
     background: #0f172a;
     border: 1px solid #334155;
-    padding: 8px;
+    padding: 7px;
     border-radius: 10px;
     text-align: center;
 }
@@ -338,7 +411,7 @@ body {
 
 .stat-pill .val {
     font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: 10.5px;
     font-weight: 700;
     color: #fbbf24;
 }
@@ -350,12 +423,17 @@ body {
         gap: 8px;
     }
     .card-art-frame {
-        height: 220px;
+        height: 210px;
     }
     .card-title {
         font-size: 14px;
     }
     .hp-val {
         font-size: 13px;
+    }
+    .stoch-readouts {
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 2px;
     }
 }

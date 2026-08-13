@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initEventListeners();
     fetchPortfolioSummary();
 
-    // Auto refresh every 4 seconds for reliable PnL & Equity updates
+    // Auto refresh every 4 seconds for reliable PnL, Equity & Stochastics updates
     setInterval(fetchPortfolioSummary, 4000);
 });
 
@@ -43,7 +43,6 @@ function initEventListeners() {
 
 async function fetchPortfolioSummary() {
     try {
-        // Cache-busting timestamp param guarantees fresh response on every call
         const res = await fetch(`/api/summary?t=${Date.now()}`, {
             headers: { 'Cache-Control': 'no-cache' }
         });
@@ -59,7 +58,7 @@ async function fetchPortfolioSummary() {
 function renderData() {
     if (!liveSummaryData) return;
 
-    const { account, openPnLByInstrument, metrics, openPositions } = liveSummaryData;
+    const { account, openPnLByInstrument, metrics, stochastics, openPositions } = liveSummaryData;
 
     const nasMetric = metrics['NAS100'] || { pnl: 0, total: 0, wins: 0, losses: 0, winRate: 0, profitFactor: 0, lots: 0 };
     const overallMetric = metrics['OVERALL'] || { pnl: 0, total: 0, wins: 0, losses: 0, winRate: 0, profitFactor: 0 };
@@ -100,17 +99,39 @@ function renderData() {
         }
     }
 
-    // 4. Move 2: NAS100 Cumulative Realized PnL
+    // --- 4. Move 2: 5m STOCHASTIC ORACLE DISPLAY (7,3,3 %D & 40,1,4 %D) ---
+    if (stochastics) {
+        const s7 = stochastics.stoch_7_3_3 || { d: 50.0, status: 'NEUTRAL', class: 'neutral' };
+        const s40 = stochastics.stoch_40_1_4 || { d: 50.0, status: 'NEUTRAL', class: 'neutral' };
+
+        const el7Val = document.getElementById('stoch7Val');
+        const el7Badge = document.getElementById('stoch7Badge');
+        if (el7Val) el7Val.innerText = s7.d.toFixed(1);
+        if (el7Badge) {
+            el7Badge.innerText = s7.status;
+            el7Badge.className = `stoch-badge ${s7.class}`;
+        }
+
+        const el40Val = document.getElementById('stoch40Val');
+        const el40Badge = document.getElementById('stoch40Badge');
+        if (el40Val) el40Val.innerText = s40.d.toFixed(1);
+        if (el40Badge) {
+            el40Badge.innerText = s40.status;
+            el40Badge.className = `stoch-badge ${s40.class}`;
+        }
+    }
+
+    // 5. Move 3: NAS100 Cumulative Realized PnL
     const nasTotalPnLEl = document.getElementById('cardTotalPnL');
     nasTotalPnLEl.innerText = `${nasMetric.pnl >= 0 ? '+' : ''}$${nasMetric.pnl.toFixed(2)}`;
     nasTotalPnLEl.className = `move-pnl ${nasMetric.pnl > 0 ? 'positive' : nasMetric.pnl < 0 ? 'negative' : 'neutral'}`;
     document.getElementById('cardClosedSub').innerText = `NAS100 Cumulative Realized PnL (${nasMetric.total} Executed Trades)`;
 
-    // 5. Move 3: NAS100 Win Rate & Record
+    // 6. Move 4: NAS100 Win Rate & Record
     document.getElementById('cardWinRate').innerText = `${nasMetric.winRate.toFixed(1)}%`;
     document.getElementById('cardWinLossSub').innerText = `${nasMetric.wins} Wins / ${nasMetric.losses} Losses (${nasMetric.winRate.toFixed(1)}% Accuracy)`;
 
-    // 6. Stat Pills: Balance, Profit Factor, Retreat Fee (-$1 / LOT)
+    // 7. Stat Pills: Balance, Profit Factor, Retreat Fee (-$1 / LOT)
     document.getElementById('cardBalance').innerText = `$${account.balance.toFixed(2)}`;
     document.getElementById('cardProfitFactor').innerText = nasMetric.profitFactor ? nasMetric.profitFactor.toFixed(2) : (overallMetric.profitFactor ? overallMetric.profitFactor.toFixed(2) : '11.49');
 
