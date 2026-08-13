@@ -111,6 +111,6 @@ function renderData() {
     document.getElementById('cardBalance').innerText = `$${account.balance.toFixed(2)}`;
     document.getElementById('cardProfitFactor').innerText = nasMetric.profitFactor ? nasMetric.profitFactor.toFixed(2) : (overallMetric.profitFactor ? overallMetric.profitFactor.toFixed(2) : '11.49');
 
-    const totalFee = (nasMetric.lots || 0.95) * 1.00;
-    document.getElementById('cardFee').innerText = `-$1.00 / LOT (-$${totalFee.toFixed(2)})`;
+    // Retreat Cost: Clean -$1.00 / LOT
+    document.getElementById('cardFee').innerText = `-$1.00 / LOT`;
 }
