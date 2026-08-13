@@ -1,0 +1,16 @@
+.account-select {
+    background: var(--bg-card);
+    border: 1px solid var(--border-bright);
+    color: var(--accent-cyan);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: 8px;
+    outline: none;
+    cursor: pointer;
+}
+
+.account-select:focus {
+    border-color: var(--accent-blue);
+}

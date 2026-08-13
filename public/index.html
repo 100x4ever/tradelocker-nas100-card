@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NAS100 Player Card</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800;900&family=Outfit:wght@400;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="dark-theme flex-center-body">
+
+    <!-- FLOATING STEALTH CONTROLS -->
+    <div class="stealth-controls">
+        <div class="account-badge-stealth">
+            <span class="status-dot online"></span>
+            <span id="accountName">HEROFX (LIVE)</span>
+            <select id="accountSelect" class="account-select"></select>
+        </div>
+        <button class="stealth-btn" id="openLoginBtn" title="TradeLocker Connection">
+            <i data-lucide="key-round"></i>
+        </button>
+    </div>
+
+    <!-- POKEMON / MTG COLLECTIBLE TRADING CARD -->
+    <div class="trading-card-standalone">
+        <div class="pokemon-card-wrapper" id="cardWrapper">
+            <div class="pokemon-card-inner">
+                <!-- Holographic Foil Sheen Overlay -->
+                <div class="foil-sheen"></div>
+
+                <!-- Card Header -->
+                <div class="card-header-bar">
+                    <div class="card-identity">
+                        <span class="card-stage">STAGE 2 • INDEX SPELL</span>
+                        <h2 class="card-title">NAS100 APEX TRADER</h2>
+                    </div>
+                    <div class="card-hp-group">
+                        <span class="hp-label">EQUITY HP</span>
+                        <span class="hp-val" id="cardEquityHp">$979.22</span>
+                        <span class="element-symbol">⚡</span>
+                    </div>
+                </div>
+
+                <!-- Card Illustration Art -->
+                <div class="card-art-frame">
+                    <img src="nas100_art.jpg" alt="NAS100 Art" class="card-art-img">
+                    <div class="card-art-overlay"></div>
+                    <div class="card-art-badge" id="cardArtBadge">NO. 812189 • US TECH 100</div>
+                </div>
+
+                <!-- Card Moves Box -->
+                <div class="card-moves-box">
+                    <!-- Move 1: NAS100 Open PnL -->
+                    <div class="move-row">
+                        <div class="move-cost">
+                            <span class="energy-icon electric">⚡</span>
+                        </div>
+                        <div class="move-info">
+                            <div class="move-header">
+                                <span class="move-name">Unrealized Strike</span>
+                                <span class="move-pnl negative" id="cardNasOpenPnL">-$8.42</span>
+                            </div>
+                            <div class="move-desc" id="cardNasOpenSub">NAS100 Open PnL (2 Active Positions)</div>
+                        </div>
+                    </div>
+
+                    <!-- Move 2: NAS100 Realized PnL -->
+                    <div class="move-row">
+                        <div class="move-cost">
+                            <span class="energy-icon fire">🔥</span>
+                        </div>
+                        <div class="move-info">
+                            <div class="move-header">
+                                <span class="move-name">Cumulative Loot</span>
+                                <span class="move-pnl positive" id="cardTotalPnL">+$11.49</span>
+                            </div>
+                            <div class="move-desc" id="cardClosedSub">NAS100 Realized PnL (5 Executed Trades)</div>
+                        </div>
+                    </div>
+
+                    <!-- Move 3: NAS100 Win Rate -->
+                    <div class="move-row">
+                        <div class="move-cost">
+                            <span class="energy-icon star">⭐</span>
+                        </div>
+                        <div class="move-info">
+                            <div class="move-header">
+                                <span class="move-name">Accuracy Rate</span>
+                                <span class="move-pnl highlight" id="cardWinRate">100.0%</span>
+                            </div>
+                            <div class="move-desc" id="cardWinLossSub">5 Wins / 0 Losses Record (100% Accuracy)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SPECIAL ATTACK BUTTON: CLOSE ALL NAS100 -->
+                <div class="card-attack-section">
+                    <button class="card-attack-btn" id="attackCloseNasBtn">
+                        <span class="attack-icon">💥</span>
+                        <div class="attack-text">
+                            <span class="attack-title">ULTIMATE ATTACK: CLOSE ALL NAS100</span>
+                            <span class="attack-sub">MARKET EXECUTE CLOSE POSITIONS</span>
+                        </div>
+                    </button>
+                </div>
+
+                <!-- Card Stats Bar -->
+                <div class="card-weakness-bar">
+                    <div class="stat-pill">
+                        <span class="lbl">BALANCE</span>
+                        <span class="val" id="cardBalance">$987.64</span>
+                    </div>
+                    <div class="stat-pill">
+                        <span class="lbl">PROFIT FACTOR</span>
+                        <span class="val" id="cardProfitFactor">11.49</span>
+                    </div>
+                    <div class="stat-pill">
+                        <span class="lbl">RETREAT COST</span>
+                        <span class="val" id="cardFee">-$1.00 / LOT</span>
+                    </div>
+                </div>
+
+                <!-- Card Footer / Flavor Text -->
+                <div class="card-footer">
+                    <p class="flavor-text">"Dominating the US Tech 100 index with high-precision entries and calculated leverage."</p>
+                    <div class="card-rarity-row">
+                        <span>★ MYTHIC RARE • HEROFX #812189</span>
+                        <span>2026 EDITION • ILLUS. ANTIGRAVITY</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Credentials Modal -->
+    <div class="modal-overlay" id="loginModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i data-lucide="lock"></i> TradeLocker Account Connection</h3>
+                <button class="close-btn" id="closeLoginBtn">&times;</button>
+            </div>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label>TradeLocker Environment</label>
+                    <select id="loginEnv" class="form-input">
+                        <option value="live" selected>Live (live.tradelocker.com)</option>
+                        <option value="demo">Demo (demo.tradelocker.com)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Server Name</label>
+                    <input type="text" id="loginServer" class="form-input" value="HEROFX" required placeholder="e.g. HEROFX">
+                </div>
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" id="loginEmail" class="form-input" value="jcollins92989@gmail.com" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="loginPassword" class="form-input" value="Pook&Buh9" required>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary" id="connectBtn">
+                        <i data-lucide="plug"></i> Connect & Fetch Portfolio
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
