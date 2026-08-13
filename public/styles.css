@@ -266,33 +266,41 @@ body {
     color: var(--text-secondary);
 }
 
-/* STOCHASTIC ORACLE DISPLAY STYLING */
+/* STOCHASTIC ORACLE DISPLAY STYLING (FAST & HEAVY) */
+.stoch-header {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
 .stoch-readouts {
     display: flex;
-    align-items: center;
-    gap: 5px;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
 }
 
 .stoch-tag {
     font-family: var(--font-mono);
-    font-size: 10.5px;
+    font-size: 10px;
     color: #cbd5e1;
     display: flex;
     align-items: center;
-    gap: 3px;
-    background: rgba(15, 23, 42, 0.7);
-    padding: 2px 6px;
-    border-radius: 6px;
+    gap: 4px;
+    background: rgba(15, 23, 42, 0.85);
+    padding: 1.5px 5px;
+    border-radius: 5px;
     border: 1px solid rgba(255,255,255,0.08);
 }
 
 .stoch-badge {
-    font-size: 9px;
+    font-size: 8.5px;
     font-weight: 800;
-    padding: 1px 5px;
+    padding: 1px 4px;
     border-radius: 4px;
     text-transform: uppercase;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.2px;
 }
 
 .stoch-badge.neutral {
@@ -430,10 +438,5 @@ body {
     }
     .hp-val {
         font-size: 13px;
-    }
-    .stoch-readouts {
-        flex-direction: column;
-        align-items: flex-end;
-        gap: 2px;
     }
 }

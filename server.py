@@ -29,7 +29,7 @@ session_config = {
     "acc_num": None
 }
 
-# Cache for static metadata & indicators (TTL = 30s)
+# Cache for static metadata (TTL = 60s)
 meta_cache = {
     "last_fetch": 0,
     "config": None,
@@ -37,14 +37,19 @@ meta_cache = {
     "history": None,
     "inst_map": {},
     "closed_trades": [],
-    "metrics": None,
-    "stochastics": None
+    "metrics": None
 }
 
 # Real-time state cache (TTL = 2.0s)
 live_cache = {
     "last_fetch": 0,
     "data": None
+}
+
+# 5m Bars cache for real-time stochastic calculation (TTL = 2.0s)
+bars_cache = {
+    "last_fetch": 0,
+    "bars": []
 }
 
 def get_jwt_token():
@@ -146,10 +151,41 @@ def calculate_stochastic(bars, k_period, k_slowing, d_smoothing):
         "class": cls
     }
 
-def refresh_metadata(auth_headers, base_url, acc_id):
-    """Fetch heavy metadata (config, instruments, trade history, 5m bars for Stochastics) - cached for 30s."""
+def fetch_live_stochastics(auth_headers, base_url):
+    """Fetch 5m NAS100 bars and calculate Fast (7,3,3) & Heavy (40,1,4) in real-time."""
     now = time.time()
-    if meta_cache["config"] and (now - meta_cache["last_fetch"]) < 30:
+    if bars_cache["bars"] and (now - bars_cache["last_fetch"]) < 2.0:
+        bars = bars_cache["bars"]
+    else:
+        now_ms = int(now * 1000)
+        from_ms = now_ms - (300 * 5 * 60 * 1000) # 300 5m bars back
+        history_url = f"{base_url}/trade/history?tradableInstrumentId=3884&routeId=509043&resolution=5m&from={from_ms}&to={now_ms}"
+        try:
+            req_h = urllib.request.Request(history_url, headers=auth_headers)
+            with urllib.request.urlopen(req_h, context=ctx) as r_h:
+                bars = json.loads(r_h.read().decode('utf-8')).get("d", {}).get("barDetails", [])
+                if bars:
+                    bars_cache["bars"] = bars
+                    bars_cache["last_fetch"] = now
+                else:
+                    bars = bars_cache["bars"]
+        except Exception as e:
+            print("Realtime stoch history exception:", e)
+            bars = bars_cache["bars"]
+
+    stoch_fast = calculate_stochastic(bars, 7, 3, 3)
+    stoch_heavy = calculate_stochastic(bars, 40, 1, 4)
+
+    return {
+        "timeframe": "5m",
+        "stoch_fast": stoch_fast,
+        "stoch_heavy": stoch_heavy
+    }
+
+def refresh_metadata(auth_headers, base_url, acc_id):
+    """Fetch heavy metadata (config, instruments, trade history) - cached for 60s."""
+    now = time.time()
+    if meta_cache["config"] and (now - meta_cache["last_fetch"]) < 60:
         return
 
     try:
@@ -252,40 +288,20 @@ def refresh_metadata(auth_headers, base_url, acc_id):
 
         meta_cache["closed_trades"] = closed_trades
         meta_cache["metrics"] = instrument_metrics
-
-        # Fetch 5m NAS100 Bars for Stochastics (7,3,3) & (40,1,4)
-        now_ms = int(time.time() * 1000)
-        from_ms = now_ms - (300 * 5 * 60 * 1000) # 300 5m bars back
-        history_url = f"{base_url}/trade/history?tradableInstrumentId=3884&routeId=509043&resolution=5m&from={from_ms}&to={now_ms}"
-        try:
-            req_h = urllib.request.Request(history_url, headers=auth_headers)
-            with urllib.request.urlopen(req_h, context=ctx) as r_h:
-                bars = json.loads(r_h.read().decode('utf-8')).get("d", {}).get("barDetails", [])
-                stoch_7 = calculate_stochastic(bars, 7, 3, 3)
-                stoch_40 = calculate_stochastic(bars, 40, 1, 4)
-                meta_cache["stochastics"] = {
-                    "timeframe": "5m",
-                    "stoch_7_3_3": stoch_7,
-                    "stoch_40_1_4": stoch_40
-                }
-        except Exception as e_h:
-            print("Error calculating stochastics:", e_h)
-            meta_cache["stochastics"] = get_default_stochastics()
-
         meta_cache["last_fetch"] = time.time()
-        print(f"[{time.strftime('%H:%M:%S')}] TradeLocker metadata & 5m Stochastics refreshed successfully.")
+        print(f"[{time.strftime('%H:%M:%S')}] TradeLocker metadata refreshed.")
     except Exception as e:
         print("Metadata refresh exception:", e)
 
 def get_default_stochastics():
     return {
         "timeframe": "5m",
-        "stoch_7_3_3": {"k": 29.9, "d": 29.4, "status": "NEUTRAL", "class": "neutral"},
-        "stoch_40_1_4": {"k": 46.0, "d": 43.6, "status": "NEUTRAL", "class": "neutral"}
+        "stoch_fast": {"k": 35.0, "d": 35.0, "status": "NEUTRAL", "class": "neutral"},
+        "stoch_heavy": {"k": 44.6, "d": 44.6, "status": "NEUTRAL", "class": "neutral"}
     }
 
 def get_tradelocker_data(retry_on_401=True):
-    """Fetch live real-time account state & positions on every request."""
+    """Fetch live real-time account state, positions & Stochastics on EVERY request."""
     now = time.time()
     if live_cache["data"] and (now - live_cache["last_fetch"]) < 2.0:
         return live_cache["data"]
@@ -326,6 +342,9 @@ def get_tradelocker_data(retry_on_401=True):
         with urllib.request.urlopen(req, context=ctx) as resp:
             positions_data = json.loads(resp.read().decode('utf-8')).get("d", {}).get("positions", [])
 
+        # 3. Real-Time Stochastics Calculation
+        stochastics = fetch_live_stochastics(auth_headers, base_url)
+
         # Map Account State
         acc_cols = [c["id"] for c in config.get("accountDetailsConfig", {}).get("columns", [])]
         account_state = dict(zip(acc_cols, state_data)) if acc_cols and state_data else {}
@@ -359,8 +378,6 @@ def get_tradelocker_data(retry_on_401=True):
             "OVERALL": {"pnl": 29.44, "winRate": 66.7, "profitFactor": 36.38, "total": 21, "wins": 14, "losses": 7, "lots": 2.45},
             "NAS100": {"pnl": 11.49, "winRate": 100.0, "profitFactor": 11.49, "total": 5, "wins": 5, "losses": 0, "lots": 0.95}
         }
-
-        stochastics = meta_cache.get("stochastics") or get_default_stochastics()
 
         result_data = {
             "account": {

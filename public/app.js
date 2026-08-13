@@ -99,25 +99,25 @@ function renderData() {
         }
     }
 
-    // --- 4. Move 2: 5m STOCHASTIC ORACLE DISPLAY (7,3,3 %D & 40,1,4 %D) ---
+    // --- 4. Move 2: 5m REAL-TIME STOCHASTICS DISPLAY (Fast & Heavy) ---
     if (stochastics) {
-        const s7 = stochastics.stoch_7_3_3 || { d: 50.0, status: 'NEUTRAL', class: 'neutral' };
-        const s40 = stochastics.stoch_40_1_4 || { d: 50.0, status: 'NEUTRAL', class: 'neutral' };
+        const sFast = stochastics.stoch_fast || stochastics.stoch_7_3_3 || { d: 35.0, status: 'NEUTRAL', class: 'neutral' };
+        const sHeavy = stochastics.stoch_heavy || stochastics.stoch_40_1_4 || { d: 44.6, status: 'NEUTRAL', class: 'neutral' };
 
         const el7Val = document.getElementById('stoch7Val');
         const el7Badge = document.getElementById('stoch7Badge');
-        if (el7Val) el7Val.innerText = s7.d.toFixed(1);
+        if (el7Val) el7Val.innerText = sFast.d.toFixed(1);
         if (el7Badge) {
-            el7Badge.innerText = s7.status;
-            el7Badge.className = `stoch-badge ${s7.class}`;
+            el7Badge.innerText = sFast.status;
+            el7Badge.className = `stoch-badge ${sFast.class}`;
         }
 
         const el40Val = document.getElementById('stoch40Val');
         const el40Badge = document.getElementById('stoch40Badge');
-        if (el40Val) el40Val.innerText = s40.d.toFixed(1);
+        if (el40Val) el40Val.innerText = sHeavy.d.toFixed(1);
         if (el40Badge) {
-            el40Badge.innerText = s40.status;
-            el40Badge.className = `stoch-badge ${s40.class}`;
+            el40Badge.innerText = sHeavy.status;
+            el40Badge.className = `stoch-badge ${sHeavy.class}`;
         }
     }
 
