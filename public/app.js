@@ -5,8 +5,8 @@ document.addEventListener('DOMContentLoaded', () => {
     initEventListeners();
     fetchPortfolioSummary();
 
-    // Auto refresh every 1.5 seconds (Safe from TradeLocker rate limits)
-    setInterval(fetchPortfolioSummary, 1500);
+    // Auto refresh every 4 seconds for reliable PnL & Equity updates
+    setInterval(fetchPortfolioSummary, 4000);
 });
 
 function initEventListeners() {
@@ -43,7 +43,10 @@ function initEventListeners() {
 
 async function fetchPortfolioSummary() {
     try {
-        const res = await fetch('/api/summary');
+        // Cache-busting timestamp param guarantees fresh response on every call
+        const res = await fetch(`/api/summary?t=${Date.now()}`, {
+            headers: { 'Cache-Control': 'no-cache' }
+        });
         const data = await res.json();
         liveSummaryData = data;
         lastRefreshTimestamp = Date.now();

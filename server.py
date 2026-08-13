@@ -24,6 +24,7 @@ session_config = {
     "environment": "live",
     "target_acc_id": "812189",
     "token": None,
+    "token_time": 0,
     "acc_id": None,
     "acc_num": None
 }
@@ -33,16 +34,29 @@ cache = {
     "data": None
 }
 
-CACHE_TTL = 1.5  # seconds
+CACHE_TTL = 3.0  # seconds
 
-def get_tradelocker_data():
+def get_jwt_token(base_url, headers):
+    """Authenticate and fetch a fresh TradeLocker JWT token."""
+    email = session_config["email"]
+    password = session_config["password"]
+    server = session_config["server"]
+    
+    auth_payload = json.dumps({"email": email, "password": password, "server": server}).encode('utf-8')
+    req = urllib.request.Request(f"{base_url}/auth/jwt/token", data=auth_payload, headers=headers, method="POST")
+    with urllib.request.urlopen(req, context=ctx) as resp:
+        res = json.loads(resp.read().decode('utf-8'))
+        token = res["accessToken"]
+        session_config["token"] = token
+        session_config["token_time"] = time.time()
+        print(f"[{time.strftime('%H:%M:%S')}] TradeLocker JWT token successfully refreshed!")
+        return token
+
+def get_tradelocker_data(retry_on_401=True):
     now = time.time()
     if cache["data"] and (now - cache["last_fetch_time"]) < CACHE_TTL:
         return cache["data"]
 
-    email = session_config["email"]
-    password = session_config["password"]
-    server = session_config["server"]
     env = session_config["environment"]
     base_url = f"https://{env}.tradelocker.com/backend-api"
 
@@ -53,15 +67,10 @@ def get_tradelocker_data():
     }
 
     try:
-        # 1. JWT Auth
+        # 1. JWT Auth (Re-authenticate if token missing or > 5 minutes old)
         token = session_config["token"]
-        if not token:
-            auth_payload = json.dumps({"email": email, "password": password, "server": server}).encode('utf-8')
-            req = urllib.request.Request(f"{base_url}/auth/jwt/token", data=auth_payload, headers=headers, method="POST")
-            with urllib.request.urlopen(req, context=ctx) as resp:
-                res = json.loads(resp.read().decode('utf-8'))
-                token = res["accessToken"]
-                session_config["token"] = token
+        if not token or (now - session_config.get("token_time", 0)) > 300:
+            token = get_jwt_token(base_url, headers)
 
         auth_headers = dict(headers)
         auth_headers["Authorization"] = f"Bearer {token}"
@@ -243,14 +252,15 @@ def get_tradelocker_data():
             "account": {
                 "accId": acc_id,
                 "accNum": acc_num,
-                "server": server,
+                "server": session_config["server"],
                 "environment": env,
                 "balance": round(balance, 2),
                 "equity": round(equity, 2),
                 "openPnL": round(open_net_pnl, 2),
                 "overallRealizedPnL": instrument_metrics["OVERALL"]["pnl"],
                 "positionsCount": len(open_positions),
-                "availableAccounts": formatted_accounts
+                "availableAccounts": formatted_accounts,
+                "serverTime": int(time.time())
             },
             "openPnLByInstrument": open_pnl_by_inst,
             "metrics": instrument_metrics,
@@ -263,23 +273,30 @@ def get_tradelocker_data():
         return result_data
 
     except urllib.error.HTTPError as e:
-        if e.code == 429:
-            print("Received HTTP 429, using cached data...")
+        if e.code == 401 and retry_on_401:
+            print("TradeLocker 401 Unauthorized token expired. Re-authenticating...")
+            session_config["token"] = None
+            cache["data"] = None
+            return get_tradelocker_data(retry_on_401=False)
+        elif e.code == 429:
+            print("Received HTTP 429, returning last cached data...")
             return cache["data"] or get_mock_summary_data()
+        
+        print(f"HTTP Error {e.code} fetching TradeLocker data: {e}")
         session_config["token"] = None
-        return cache["data"] or get_mock_summary_data()
+        cache["data"] = None
+        return get_mock_summary_data()
     except Exception as e:
         session_config["token"] = None
+        cache["data"] = None
         print(f"Error fetching TradeLocker data: {e}")
-        return cache["data"] or get_mock_summary_data()
+        return get_mock_summary_data()
 
 def close_nas100_positions():
     """Execute TradeLocker REST API call to market close all NAS100 positions."""
-
-    # 1. First fetch current live data to identify open NAS100 positions
     data = get_tradelocker_data()
     open_positions = data.get("openPositions", [])
-    
+
     nas_positions = [
         p for p in open_positions
         if "NAS" in (p.get("instrumentName") or "").upper()
@@ -290,9 +307,6 @@ def close_nas100_positions():
     if not nas_positions and not session_config["live_mode"]:
         return {"status": "ok", "closedCount": 0, "message": "No open NAS100 positions found"}
 
-    email = session_config["email"]
-    password = session_config["password"]
-    server = session_config["server"]
     env = session_config["environment"]
     base_url = f"https://{env}.tradelocker.com/backend-api"
 
@@ -304,12 +318,7 @@ def close_nas100_positions():
 
     token = session_config["token"]
     if not token:
-        auth_payload = json.dumps({"email": email, "password": password, "server": server}).encode('utf-8')
-        req = urllib.request.Request(f"{base_url}/auth/jwt/token", data=auth_payload, headers=headers, method="POST")
-        with urllib.request.urlopen(req, context=ctx) as resp:
-            res = json.loads(resp.read().decode('utf-8'))
-            token = res["accessToken"]
-            session_config["token"] = token
+        token = get_jwt_token(base_url, headers)
 
     acc_id = session_config["acc_id"] or "812189"
     acc_num = session_config["acc_num"] or "17"
@@ -398,9 +407,12 @@ def get_mock_summary_data():
 
 class TradeLockerHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
-        if self.path == '/api/summary':
+        if self.path.startswith('/api/summary'):
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
+            self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+            self.send_header('Pragma', 'no-cache')
+            self.send_header('Expires', '0')
             self.end_headers()
 
             if session_config["live_mode"]:
