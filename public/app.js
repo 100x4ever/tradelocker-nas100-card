@@ -11,38 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initEventListeners() {
-    // Attack Move: Close All NAS100 Positions
-    const attackBtn = document.getElementById('attackCloseNasBtn');
-    if (attackBtn) {
-        attackBtn.addEventListener('click', async (e) => {
-            const confirmed = confirm("Execute Special Attack: Market Close ALL active NAS100 positions?");
-            if (!confirmed) return;
-
-            attackBtn.disabled = true;
-            attackBtn.querySelector('.attack-title').innerText = "EXECUTING ATTACK...";
-            attackBtn.querySelector('.attack-icon').innerText = "⚡";
-
-            try {
-                const res = await fetch('/api/close-all-nas100', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                const data = await res.json();
-
-                alert(data.message || "NAS100 positions market closed successfully!");
-                fetchPortfolioSummary();
-            } catch (err) {
-                alert("Attack execution error: " + err.message);
-            } finally {
-                attackBtn.disabled = false;
-                attackBtn.querySelector('.attack-title').innerText = "ULTIMATE ATTACK: CLOSE ALL NAS100";
-                attackBtn.querySelector('.attack-icon').innerText = "💥";
-            }
-        });
-    }
-
     // Defensive Move: Set Break Even (BE), Positive Lock (+$5), -$5 and -$10 Stop Loss
-    const defSelect = document.getElementById('defPosSelect');
     const btnSlBe = document.getElementById('btnSlBe');
     const btnSlP5 = document.getElementById('btnSlP5');
     const btnSl5 = document.getElementById('btnSl5');
@@ -53,29 +22,13 @@ function initEventListeners() {
     const btnTp15 = document.getElementById('btnTp15');
     const btnTp20 = document.getElementById('btnTp20');
 
-    if (defSelect) {
-        defSelect.addEventListener('change', (e) => {
-            const selectedId = e.target.value;
-            const hasSelection = Boolean(selectedId);
-            if (btnSlBe) btnSlBe.disabled = !hasSelection;
-            if (btnSlP5) btnSlP5.disabled = !hasSelection;
-            if (btnSl5) btnSl5.disabled = !hasSelection;
-            if (btnSl10) btnSl10.disabled = !hasSelection;
-            if (btnTp10) btnTp10.disabled = !hasSelection;
-            if (btnTp15) btnTp15.disabled = !hasSelection;
-            if (btnTp20) btnTp20.disabled = !hasSelection;
-        });
-    }
-
     const executeStopLoss = async (amount) => {
-        const posId = defSelect ? defSelect.value : "all";
         let label = "";
         if (amount === 0) label = "Break Even (Exact Entry Price)";
         else if (amount > 0) label = `+$${amount}.00 Profit Lock`;
         else label = `-$${Math.abs(amount)}.00 Loss Cap`;
 
-        const targetText = (posId && posId !== "all") ? `Position #${posId.slice(-6)}` : "ALL active open positions";
-        const confirmed = confirm(`Apply Defensive Shield: Set ${label} Stop Loss on ${targetText}?`);
+        const confirmed = confirm(`Apply Defensive Shield: Set ${label} Stop Loss on ALL active open positions?`);
         if (!confirmed) return;
 
         if (btnSlBe) btnSlBe.disabled = true;
@@ -87,7 +40,7 @@ function initEventListeners() {
             const res = await fetch('/api/set-stoploss', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ positionId: posId, amount: amount })
+                body: JSON.stringify({ positionId: "all", amount: amount })
             });
             const data = await res.json();
             if (data.status === 'ok') {
@@ -99,19 +52,15 @@ function initEventListeners() {
         } catch (err) {
             alert("Error setting Stop Loss: " + err.message);
         } finally {
-            if (defSelect && (defSelect.value || defSelect.options.length > 0)) {
-                if (btnSlBe) btnSlBe.disabled = false;
-                if (btnSlP5) btnSlP5.disabled = false;
-                if (btnSl5) btnSl5.disabled = false;
-                if (btnSl10) btnSl10.disabled = false;
-            }
+            if (btnSlBe) btnSlBe.disabled = false;
+            if (btnSlP5) btnSlP5.disabled = false;
+            if (btnSl5) btnSl5.disabled = false;
+            if (btnSl10) btnSl10.disabled = false;
         }
     };
 
     const executeTakeProfit = async (amount) => {
-        const posId = defSelect ? defSelect.value : "all";
-        const targetText = (posId && posId !== "all") ? `Position #${posId.slice(-6)}` : "ALL active open positions";
-        const confirmed = confirm(`Unrealized Strike: Set Max Power +$${amount}.00 Take Profit on ${targetText}?`);
+        const confirmed = confirm(`Unrealized Strike: Set +$${amount}.00 Take Profit on ALL active open positions?`);
         if (!confirmed) return;
 
         if (btnTp10) btnTp10.disabled = true;
@@ -122,7 +71,7 @@ function initEventListeners() {
             const res = await fetch('/api/set-takeprofit', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ positionId: posId, amount: amount })
+                body: JSON.stringify({ positionId: "all", amount: amount })
             });
             const data = await res.json();
             if (data.status === 'ok') {
@@ -134,11 +83,9 @@ function initEventListeners() {
         } catch (err) {
             alert("Error setting Take Profit: " + err.message);
         } finally {
-            if (defSelect && (defSelect.value || defSelect.options.length > 0)) {
-                if (btnTp10) btnTp10.disabled = false;
-                if (btnTp15) btnTp15.disabled = false;
-                if (btnTp20) btnTp20.disabled = false;
-            }
+            if (btnTp10) btnTp10.disabled = false;
+            if (btnTp15) btnTp15.disabled = false;
+            if (btnTp20) btnTp20.disabled = false;
         }
     };
 
@@ -197,8 +144,7 @@ function renderData() {
         }
     }
 
-    // --- POPULATE DEFENSIVE MOVE POSITION SELECTOR & ENABLE BUTTONS ---
-    const defSelect = document.getElementById('defPosSelect');
+    // --- ENABLE / DISABLE BUTTONS BASED ON OPEN POSITIONS ---
     const btnSlBe = document.getElementById('btnSlBe');
     const btnSlP5 = document.getElementById('btnSlP5');
     const btnSl5 = document.getElementById('btnSl5');
@@ -208,47 +154,15 @@ function renderData() {
     const btnTp15 = document.getElementById('btnTp15');
     const btnTp20 = document.getElementById('btnTp20');
 
-    if (defSelect) {
-        const currentSelected = defSelect.value;
-        if (nasPositions.length === 0) {
-            defSelect.innerHTML = `<option value="">No Open Positions</option>`;
-            if (btnSlBe) btnSlBe.disabled = true;
-            if (btnSlP5) btnSlP5.disabled = true;
-            if (btnSl5) btnSl5.disabled = true;
-            if (btnSl10) btnSl10.disabled = true;
-            if (btnTp10) btnTp10.disabled = true;
-            if (btnTp15) btnTp15.disabled = true;
-            if (btnTp20) btnTp20.disabled = true;
-        } else {
-            const optionsHtml = `<option value="all">Apply to All Positions (${nasPositions.length})</option>` + nasPositions.map(p => {
-                const pid = p.id || p.positionId;
-                const side = (p.side || 'buy').toUpperCase();
-                const qty = p.qty || 0.01;
-                const entry = parseFloat(p.avgPrice || 0).toFixed(2);
-                const slText = p.stopLoss ? ` [SL $${parseFloat(p.stopLoss).toFixed(2)}]` : '';
-                const tpText = p.takeProfit ? ` [TP $${parseFloat(p.takeProfit).toFixed(2)}]` : '';
-                return `<option value="${pid}" ${pid === currentSelected ? 'selected' : ''}>
-                    #${pid.slice(-6)} (${side} ${qty}L @ ${entry})${slText}${tpText}
-                </option>`;
-            }).join('');
-            
-            defSelect.innerHTML = optionsHtml;
+    const hasOpenPositions = nasPositions.length > 0;
+    if (btnSlBe) btnSlBe.disabled = !hasOpenPositions;
+    if (btnSlP5) btnSlP5.disabled = !hasOpenPositions;
+    if (btnSl5) btnSl5.disabled = !hasOpenPositions;
+    if (btnSl10) btnSl10.disabled = !hasOpenPositions;
 
-            if (currentSelected && (currentSelected === "all" || nasPositions.some(p => (p.id || p.positionId) === currentSelected))) {
-                defSelect.value = currentSelected;
-            } else {
-                defSelect.value = "all";
-            }
-
-            if (btnSlBe) btnSlBe.disabled = false;
-            if (btnSlP5) btnSlP5.disabled = false;
-            if (btnSl5) btnSl5.disabled = false;
-            if (btnSl10) btnSl10.disabled = false;
-            if (btnTp10) btnTp10.disabled = false;
-            if (btnTp15) btnTp15.disabled = false;
-            if (btnTp20) btnTp20.disabled = false;
-        }
-    }
+    if (btnTp10) btnTp10.disabled = !hasOpenPositions;
+    if (btnTp15) btnTp15.disabled = !hasOpenPositions;
+    if (btnTp20) btnTp20.disabled = !hasOpenPositions;
 
     // --- 3. DYNAMIC POKEMON MOOD ARTWORK SWITCHING (BULL VS BEAR BASED ON POSITION SIDE) ---
     const artImg = document.getElementById('cardArtImg');

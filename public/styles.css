@@ -169,11 +169,11 @@ body {
     font-size: 13px;
 }
 
-/* Card Artwork Frame (Taller Window) */
+/* Card Artwork Frame (Enlarged Taller Window) */
 .card-art-frame {
     position: relative;
     width: 100%;
-    height: 220px;
+    height: 310px;
     border-radius: 14px;
     border: 3.5px solid #f59e0b;
     overflow: hidden;
@@ -266,19 +266,12 @@ body {
     color: var(--text-secondary);
 }
 
-/* UNREALIZED STRIKE MAX POWER TP STYLING */
+/* UNREALIZED STRIKE TAKE PROFIT BUTTONS */
 .max-power-container {
     display: flex;
     flex-direction: column;
     gap: 3px;
-    margin: 4px 0;
-}
-
-.max-power-label {
-    font-size: 8.5px;
-    font-weight: 800;
-    color: #f59e0b;
-    letter-spacing: 0.4px;
+    margin-top: 3px;
 }
 
 .tp-btn-row {
@@ -321,21 +314,7 @@ body {
 
 /* DEFENSIVE SHIELD STOP LOSS STYLING */
 .def-header {
-    margin-bottom: 4px;
-}
-
-.def-pos-select {
-    background: rgba(15, 23, 42, 0.9);
-    border: 1px solid #3b82f6;
-    color: #60a5fa;
-    font-family: var(--font-mono);
-    font-size: 10px;
-    font-weight: 700;
-    padding: 2px 6px;
-    border-radius: 6px;
-    outline: none;
-    max-width: 185px;
-    text-overflow: ellipsis;
+    margin-bottom: 3px;
 }
 
 .def-btn-row {
@@ -502,55 +481,6 @@ body {
     100% { background: rgba(16, 185, 129, 0.75); box-shadow: 0 0 12px rgba(16, 185, 129, 0.9); color: #ffffff; }
 }
 
-/* SPECIAL ATTACK BUTTON: CLOSE ALL NAS100 */
-.card-attack-section {
-    position: relative;
-    z-index: 20;
-}
-
-.card-attack-btn {
-    width: 100%;
-    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
-    border: 2px solid #fca5a5;
-    border-radius: 10px;
-    padding: 9px 12px;
-    color: #ffffff;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    box-shadow: 0 4px 14px rgba(220, 38, 38, 0.4);
-    transition: all 0.15s ease;
-}
-
-.card-attack-btn:active {
-    transform: scale(0.98);
-}
-
-.attack-icon {
-    font-size: 18px;
-}
-
-.attack-text {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-}
-
-.attack-title {
-    font-family: var(--font-card-title);
-    font-size: 12px;
-    font-weight: 900;
-    letter-spacing: 0.4px;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.8);
-}
-
-.attack-sub {
-    font-size: 9.5px;
-    font-weight: 600;
-    color: #fecaca;
-}
-
 /* Card Stats Bar */
 .card-weakness-bar {
     display: grid;
@@ -588,15 +518,12 @@ body {
         gap: 8px;
     }
     .card-art-frame {
-        height: 180px;
+        height: 260px;
     }
     .card-title {
         font-size: 14px;
     }
     .hp-val {
         font-size: 13px;
-    }
-    .def-pos-select {
-        max-width: 140px;
     }
 }

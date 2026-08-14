@@ -34,15 +34,15 @@
                     </div>
                 </div>
 
-                <!-- Card Illustration Art (Taller Window) -->
+                <!-- Card Illustration Art (Enlarged Taller Window) -->
                 <div class="card-art-frame">
-                    <img src="art_red_double.jpg" alt="NAS100 Mood Art" class="card-art-img" id="cardArtImg">
+                    <img src="art_neutral.jpg" alt="NAS100 Mood Art" class="card-art-img" id="cardArtImg">
                     <div class="card-art-overlay"></div>
                 </div>
 
                 <!-- Card Moves Box -->
                 <div class="card-moves-box">
-                    <!-- Move 1: NAS100 Open PnL & Max Power TP Slot -->
+                    <!-- Move 1: NAS100 Open PnL & Take Profit Buttons -->
                     <div class="move-row unrealized-move-row">
                         <div class="move-cost">
                             <span class="energy-icon electric">⚡</span>
@@ -53,7 +53,6 @@
                                 <span class="move-pnl negative" id="cardNasOpenPnL">-$8.42</span>
                             </div>
                             <div class="max-power-container">
-                                <div class="max-power-label">⚡ MAX POWER TP:</div>
                                 <div class="tp-btn-row">
                                     <button class="tp-btn tp-10" id="btnTp10" disabled>+$10</button>
                                     <button class="tp-btn tp-15" id="btnTp15" disabled>+$15</button>
@@ -63,7 +62,7 @@
                         </div>
                     </div>
 
-                    <!-- Move 2: Defensive Shield (BE, +$5, -$5 & -$10 Stop Loss) -->
+                    <!-- Move 2: Defensive Shield (Set BE, +$5, -$5 & -$10 Stop Loss) -->
                     <div class="move-row def-move-row">
                         <div class="move-cost">
                             <span class="energy-icon shield">🛡️</span>
@@ -71,9 +70,6 @@
                         <div class="move-info">
                             <div class="move-header def-header">
                                 <span class="move-name">Defensive Shield</span>
-                                <select id="defPosSelect" class="def-pos-select">
-                                    <option value="">No Open Positions</option>
-                                </select>
                             </div>
                             <div class="def-btn-row">
                                 <button class="def-btn sl-be" id="btnSlBe" disabled>🛡️ BE</button>
@@ -138,17 +134,6 @@
                             </a>
                         </div>
                     </div>
-                </div>
-
-                <!-- SPECIAL ATTACK BUTTON: CLOSE ALL NAS100 -->
-                <div class="card-attack-section">
-                    <button class="card-attack-btn" id="attackCloseNasBtn">
-                        <span class="attack-icon">💥</span>
-                        <div class="attack-text">
-                            <span class="attack-title">ULTIMATE ATTACK: CLOSE ALL NAS100</span>
-                            <span class="attack-sub">MARKET EXECUTE CLOSE POSITIONS</span>
-                        </div>
-                    </button>
                 </div>
 
                 <!-- Card Stats Bar -->
