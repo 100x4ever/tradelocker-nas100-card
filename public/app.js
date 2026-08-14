@@ -40,9 +40,10 @@ function initEventListeners() {
         });
     }
 
-    // Defensive Move: Set Break Even, -$5 and -$10 Stop Loss
+    // Defensive Move: Set Break Even (BE), Positive Lock (+$5), -$5 and -$10 Stop Loss
     const defSelect = document.getElementById('defPosSelect');
     const btnSlBe = document.getElementById('btnSlBe');
+    const btnSlP5 = document.getElementById('btnSlP5');
     const btnSl5 = document.getElementById('btnSl5');
     const btnSl10 = document.getElementById('btnSl10');
 
@@ -56,6 +57,7 @@ function initEventListeners() {
             const selectedId = e.target.value;
             const hasSelection = Boolean(selectedId);
             if (btnSlBe) btnSlBe.disabled = !hasSelection;
+            if (btnSlP5) btnSlP5.disabled = !hasSelection;
             if (btnSl5) btnSl5.disabled = !hasSelection;
             if (btnSl10) btnSl10.disabled = !hasSelection;
             if (btnTp10) btnTp10.disabled = !hasSelection;
@@ -66,12 +68,17 @@ function initEventListeners() {
 
     const executeStopLoss = async (amount) => {
         const posId = defSelect ? defSelect.value : "all";
-        const label = amount === 0 ? "Break Even (Exact Entry Price)" : `-$${amount}.00 Total PnL`;
+        let label = "";
+        if (amount === 0) label = "Break Even (Exact Entry Price)";
+        else if (amount > 0) label = `+$${amount}.00 Profit Lock`;
+        else label = `-$${Math.abs(amount)}.00 Loss Cap`;
+
         const targetText = (posId && posId !== "all") ? `Position #${posId.slice(-6)}` : "ALL active open positions";
         const confirmed = confirm(`Apply Defensive Shield: Set ${label} Stop Loss on ${targetText}?`);
         if (!confirmed) return;
 
         if (btnSlBe) btnSlBe.disabled = true;
+        if (btnSlP5) btnSlP5.disabled = true;
         if (btnSl5) btnSl5.disabled = true;
         if (btnSl10) btnSl10.disabled = true;
 
@@ -93,6 +100,7 @@ function initEventListeners() {
         } finally {
             if (defSelect && (defSelect.value || defSelect.options.length > 0)) {
                 if (btnSlBe) btnSlBe.disabled = false;
+                if (btnSlP5) btnSlP5.disabled = false;
                 if (btnSl5) btnSl5.disabled = false;
                 if (btnSl10) btnSl10.disabled = false;
             }
@@ -134,8 +142,9 @@ function initEventListeners() {
     };
 
     if (btnSlBe) btnSlBe.addEventListener('click', () => executeStopLoss(0.0));
-    if (btnSl5) btnSl5.addEventListener('click', () => executeStopLoss(5.0));
-    if (btnSl10) btnSl10.addEventListener('click', () => executeStopLoss(10.0));
+    if (btnSlP5) btnSlP5.addEventListener('click', () => executeStopLoss(5.0)); // Positive +$5 Profit Lock!
+    if (btnSl5) btnSl5.addEventListener('click', () => executeStopLoss(-5.0));  // Negative -$5 Loss Cap
+    if (btnSl10) btnSl10.addEventListener('click', () => executeStopLoss(-10.0)); // Negative -$10 Loss Cap
 
     if (btnTp10) btnTp10.addEventListener('click', () => executeTakeProfit(10.0));
     if (btnTp15) btnTp15.addEventListener('click', () => executeTakeProfit(15.0));
@@ -181,6 +190,7 @@ function renderData() {
     // --- POPULATE DEFENSIVE MOVE POSITION SELECTOR & ENABLE BUTTONS ---
     const defSelect = document.getElementById('defPosSelect');
     const btnSlBe = document.getElementById('btnSlBe');
+    const btnSlP5 = document.getElementById('btnSlP5');
     const btnSl5 = document.getElementById('btnSl5');
     const btnSl10 = document.getElementById('btnSl10');
 
@@ -193,6 +203,7 @@ function renderData() {
         if (nasPositions.length === 0) {
             defSelect.innerHTML = `<option value="">No Open Positions</option>`;
             if (btnSlBe) btnSlBe.disabled = true;
+            if (btnSlP5) btnSlP5.disabled = true;
             if (btnSl5) btnSl5.disabled = true;
             if (btnSl10) btnSl10.disabled = true;
             if (btnTp10) btnTp10.disabled = true;
@@ -220,6 +231,7 @@ function renderData() {
             }
 
             if (btnSlBe) btnSlBe.disabled = false;
+            if (btnSlP5) btnSlP5.disabled = false;
             if (btnSl5) btnSl5.disabled = false;
             if (btnSl10) btnSl10.disabled = false;
             if (btnTp10) btnTp10.disabled = false;
@@ -248,7 +260,6 @@ function renderData() {
             }
         }
 
-        // Use 'bear_' prefix for SHORT positions, and 'art_' prefix for LONG/Neutral positions!
         const prefix = isShort ? 'bear_' : 'art_';
 
         let selectedArt = `${prefix}neutral.jpg`;

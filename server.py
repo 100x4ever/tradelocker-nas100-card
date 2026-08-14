@@ -424,7 +424,7 @@ def get_tradelocker_data(retry_on_401=True):
         return live_cache["data"] or get_mock_summary_data()
 
 def set_position_stoploss(position_id, loss_amount):
-    """Calculate exact Stop Loss price level for position (or all open positions) for Break Even or -$5 / -$10 total loss."""
+    """Calculate exact Stop Loss price level for Break Even, positive lock (+$5), or -$5 / -$10 loss."""
     data = get_tradelocker_data()
     positions = data.get("openPositions", [])
 
@@ -442,9 +442,9 @@ def set_position_stoploss(position_id, loss_amount):
         target_positions = positions
 
     try:
-        loss_amt = float(loss_amount)
+        val_amt = float(loss_amount)
     except (ValueError, TypeError):
-        loss_amt = 0.0
+        val_amt = 0.0
 
     env = session_config["environment"]
     base_url = f"https://{env}.tradelocker.com/backend-api"
@@ -477,15 +477,24 @@ def set_position_stoploss(position_id, loss_amount):
         if entry_p <= 0 or qty <= 0:
             continue
 
-        if loss_amt == 0.0 or str(loss_amount).lower() == "be":
+        if val_amt == 0.0 or str(loss_amount).lower() == "be":
             sl_price = round(entry_p, 2)
             label = "Break Even"
-        else:
+        elif val_amt > 0:
+            # Positive +$5 Stop Loss / Profit Lock
             if side == "buy":
-                sl_price = round(entry_p - (loss_amt / qty), 2)
+                sl_price = round(entry_p + (val_amt / qty), 2)
             else:
-                sl_price = round(entry_p + (loss_amt / qty), 2)
-            label = f"-${loss_amt:.2f}"
+                sl_price = round(entry_p - (val_amt / qty), 2)
+            label = f"+${val_amt:.2f}"
+        else:
+            # Negative -$5 / -$10 Stop Loss
+            abs_val = abs(val_amt)
+            if side == "buy":
+                sl_price = round(entry_p - (abs_val / qty), 2)
+            else:
+                sl_price = round(entry_p + (abs_val / qty), 2)
+            label = f"-${abs_val:.2f}"
 
         sl_price_last = sl_price
         patch_body = json.dumps({"stopLoss": sl_price}).encode('utf-8')

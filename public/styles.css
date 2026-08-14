@@ -283,7 +283,7 @@ body {
 
 .tp-btn-row {
     display: flex;
-    gap: 5px;
+    gap: 4px;
 }
 
 .tp-btn {
@@ -340,7 +340,7 @@ body {
 
 .def-btn-row {
     display: flex;
-    gap: 5px;
+    gap: 4px;
 }
 
 .def-btn {
@@ -350,9 +350,9 @@ body {
     border-radius: 6px;
     color: #ffffff;
     font-family: var(--font-main);
-    font-size: 9.5px;
+    font-size: 9px;
     font-weight: 800;
-    padding: 5px 4px;
+    padding: 4px 2px;
     cursor: pointer;
     transition: all 0.15s ease;
     box-shadow: 0 2px 6px rgba(30, 58, 138, 0.4);
@@ -365,9 +365,15 @@ body {
     border-color: #34d399;
 }
 
-.def-btn.sl-be:hover:not(:disabled) {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    box-shadow: 0 4px 10px rgba(16, 185, 129, 0.5);
+.def-btn.sl-p5 {
+    background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+    border-color: #2dd4bf;
+}
+
+.def-btn.sl-be:hover:not(:disabled),
+.def-btn.sl-p5:hover:not(:disabled) {
+    background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
+    box-shadow: 0 4px 10px rgba(20, 184, 166, 0.5);
 }
 
 .def-btn:hover:not(:disabled) {
@@ -384,6 +390,37 @@ body {
     opacity: 0.4;
     cursor: not-allowed;
     border-color: #475569;
+}
+
+/* DIMENSION PORTAL (OPEN TRADELOCKER) STYLING */
+.portal-link-btn {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    text-decoration: none;
+    color: inherit;
+}
+
+.portal-badge {
+    font-family: var(--font-card-title);
+    font-size: 10px;
+    font-weight: 800;
+    color: #38bdf8;
+    background: rgba(14, 165, 233, 0.15);
+    border: 1px solid #0284c7;
+    padding: 3px 8px;
+    border-radius: 6px;
+    letter-spacing: 0.4px;
+    transition: all 0.15s ease;
+    box-shadow: 0 2px 6px rgba(14, 165, 233, 0.25);
+}
+
+.portal-link-btn:hover .portal-badge {
+    background: rgba(14, 165, 233, 0.35);
+    color: #7dd3fc;
+    box-shadow: 0 4px 12px rgba(14, 165, 233, 0.5);
+    transform: translateY(-1px);
 }
 
 /* STOCHASTIC ORACLE DISPLAY STYLING (FAST & HEAVY) */
