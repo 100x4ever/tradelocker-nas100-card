@@ -65,14 +65,10 @@ function initEventListeners() {
     }
 
     const executeStopLoss = async (amount) => {
-        const posId = defSelect ? defSelect.value : null;
-        if (!posId) {
-            alert("Please select an open position first!");
-            return;
-        }
-
-        const label = amount === 0 ? "Break Even (Exact Entry Price)" : `-$${amount}.00`;
-        const confirmed = confirm(`Apply Defensive Shield: Set ${label} Stop Loss on Position #${posId}?`);
+        const posId = defSelect ? defSelect.value : "all";
+        const label = amount === 0 ? "Break Even (Exact Entry Price)" : `-$${amount}.00 Total PnL`;
+        const targetText = (posId && posId !== "all") ? `Position #${posId.slice(-6)}` : "ALL active open positions";
+        const confirmed = confirm(`Apply Defensive Shield: Set ${label} Stop Loss on ${targetText}?`);
         if (!confirmed) return;
 
         if (btnSlBe) btnSlBe.disabled = true;
@@ -95,7 +91,7 @@ function initEventListeners() {
         } catch (err) {
             alert("Error setting Stop Loss: " + err.message);
         } finally {
-            if (defSelect && defSelect.value) {
+            if (defSelect && (defSelect.value || defSelect.options.length > 0)) {
                 if (btnSlBe) btnSlBe.disabled = false;
                 if (btnSl5) btnSl5.disabled = false;
                 if (btnSl10) btnSl10.disabled = false;
@@ -104,13 +100,9 @@ function initEventListeners() {
     };
 
     const executeTakeProfit = async (amount) => {
-        const posId = defSelect ? defSelect.value : null;
-        if (!posId) {
-            alert("Please select an open position first!");
-            return;
-        }
-
-        const confirmed = confirm(`Unrealized Strike: Set Max Power +$${amount}.00 Take Profit on Position #${posId}?`);
+        const posId = defSelect ? defSelect.value : "all";
+        const targetText = (posId && posId !== "all") ? `Position #${posId.slice(-6)}` : "ALL active open positions";
+        const confirmed = confirm(`Unrealized Strike: Set Max Power +$${amount}.00 Take Profit on ${targetText}?`);
         if (!confirmed) return;
 
         if (btnTp10) btnTp10.disabled = true;
@@ -133,7 +125,7 @@ function initEventListeners() {
         } catch (err) {
             alert("Error setting Take Profit: " + err.message);
         } finally {
-            if (defSelect && defSelect.value) {
+            if (defSelect && (defSelect.value || defSelect.options.length > 0)) {
                 if (btnTp10) btnTp10.disabled = false;
                 if (btnTp15) btnTp15.disabled = false;
                 if (btnTp20) btnTp20.disabled = false;
@@ -185,8 +177,6 @@ function renderData() {
         const name = (p.instrumentName || '').toUpperCase();
         return name.includes('NAS') || name.includes('100') || p.tradableInstrumentId === '3884';
     });
-    
-    document.getElementById('cardNasOpenSub').innerText = `NAS100 Open PnL (${nasPositions.length} Active Positions)`;
 
     // --- POPULATE DEFENSIVE MOVE POSITION SELECTOR & ENABLE BUTTONS ---
     const defSelect = document.getElementById('defPosSelect');
@@ -209,7 +199,7 @@ function renderData() {
             if (btnTp15) btnTp15.disabled = true;
             if (btnTp20) btnTp20.disabled = true;
         } else {
-            defSelect.innerHTML = `<option value="">Select Position...</option>` + nasPositions.map(p => {
+            const optionsHtml = `<option value="all">Apply to All Positions (${nasPositions.length})</option>` + nasPositions.map(p => {
                 const pid = p.id || p.positionId;
                 const side = (p.side || 'buy').toUpperCase();
                 const qty = p.qty || 0.01;
@@ -220,25 +210,21 @@ function renderData() {
                     #${pid.slice(-6)} (${side} ${qty}L @ ${entry})${slText}${tpText}
                 </option>`;
             }).join('');
+            
+            defSelect.innerHTML = optionsHtml;
 
-            if (currentSelected && nasPositions.some(p => (p.id || p.positionId) === currentSelected)) {
+            if (currentSelected && (currentSelected === "all" || nasPositions.some(p => (p.id || p.positionId) === currentSelected))) {
                 defSelect.value = currentSelected;
-                if (btnSlBe) btnSlBe.disabled = false;
-                if (btnSl5) btnSl5.disabled = false;
-                if (btnSl10) btnSl10.disabled = false;
-                if (btnTp10) btnTp10.disabled = false;
-                if (btnTp15) btnTp15.disabled = false;
-                if (btnTp20) btnTp20.disabled = false;
-            } else if (nasPositions.length === 1) {
-                // Auto select if only 1 position exists
-                defSelect.value = nasPositions[0].id || nasPositions[0].positionId;
-                if (btnSlBe) btnSlBe.disabled = false;
-                if (btnSl5) btnSl5.disabled = false;
-                if (btnSl10) btnSl10.disabled = false;
-                if (btnTp10) btnTp10.disabled = false;
-                if (btnTp15) btnTp15.disabled = false;
-                if (btnTp20) btnTp20.disabled = false;
+            } else {
+                defSelect.value = "all";
             }
+
+            if (btnSlBe) btnSlBe.disabled = false;
+            if (btnSl5) btnSl5.disabled = false;
+            if (btnSl10) btnSl10.disabled = false;
+            if (btnTp10) btnTp10.disabled = false;
+            if (btnTp15) btnTp15.disabled = false;
+            if (btnTp20) btnTp20.disabled = false;
         }
     }
 
@@ -289,11 +275,9 @@ function renderData() {
     const nasTotalPnLEl = document.getElementById('cardTotalPnL');
     nasTotalPnLEl.innerText = `${nasMetric.pnl >= 0 ? '+' : ''}$${nasMetric.pnl.toFixed(2)}`;
     nasTotalPnLEl.className = `move-pnl ${nasMetric.pnl > 0 ? 'positive' : nasMetric.pnl < 0 ? 'negative' : 'neutral'}`;
-    document.getElementById('cardClosedSub').innerText = `NAS100 Cumulative Realized PnL (${nasMetric.total} Executed Trades)`;
 
     // 6. Move 5: NAS100 Win Rate & Record
     document.getElementById('cardWinRate').innerText = `${nasMetric.winRate.toFixed(1)}%`;
-    document.getElementById('cardWinLossSub').innerText = `${nasMetric.wins} Wins / ${nasMetric.losses} Losses (${nasMetric.winRate.toFixed(1)}% Accuracy)`;
 
     // 7. Stat Pills: Balance, Profit Factor, Retreat Fee (-$1 / LOT)
     document.getElementById('cardBalance').innerText = `$${account.balance.toFixed(2)}`;

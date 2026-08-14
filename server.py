@@ -424,41 +424,28 @@ def get_tradelocker_data(retry_on_401=True):
         return live_cache["data"] or get_mock_summary_data()
 
 def set_position_stoploss(position_id, loss_amount):
-    """Calculate exact price level for Break Even (0.0), -$5 or -$10 loss and execute PATCH /trade/positions/{positionId}."""
+    """Calculate exact Stop Loss price level for position (or all open positions) for Break Even or -$5 / -$10 total loss."""
     data = get_tradelocker_data()
     positions = data.get("openPositions", [])
-    
-    target_pos = None
-    for p in positions:
-        if str(p.get("id")) == str(position_id) or str(p.get("positionId")) == str(position_id):
-            target_pos = p
-            break
-            
-    if not target_pos:
-        return {"status": "error", "message": f"Position #{position_id} not found in open positions"}
 
-    side = str(target_pos.get("side", "buy")).lower()
-    qty = float(target_pos.get("qty") or 0.01)
-    entry_p = float(target_pos.get("avgPrice") or 0.0)
+    if not positions:
+        return {"status": "error", "message": "No open positions found"}
+
+    target_positions = []
+    if position_id and str(position_id).lower() != "all":
+        for p in positions:
+            if str(p.get("id")) == str(position_id) or str(p.get("positionId")) == str(position_id):
+                target_positions.append(p)
+                break
     
+    if not target_positions:
+        target_positions = positions
+
     try:
         loss_amt = float(loss_amount)
     except (ValueError, TypeError):
         loss_amt = 0.0
 
-    if entry_p <= 0:
-        return {"status": "error", "message": "Invalid entry price for position"}
-
-    if loss_amt == 0.0 or str(loss_amount).lower() == "be":
-        sl_price = round(entry_p, 2)
-        label = "Break Even"
-    else:
-        if side == "buy":
-            sl_price = round(entry_p - (loss_amt / qty), 2)
-        else:
-            sl_price = round(entry_p + (loss_amt / qty), 2)
-        label = f"-${loss_amt:.2f}"
-
     env = session_config["environment"]
     base_url = f"https://{env}.tradelocker.com/backend-api"
 
@@ -478,52 +465,72 @@ def set_position_stoploss(position_id, loss_amount):
     auth_headers["Authorization"] = f"Bearer {token}"
     auth_headers["accNum"] = str(acc_num)
 
-    patch_body = json.dumps({"stopLoss": sl_price}).encode('utf-8')
-    url = f"{base_url}/trade/positions/{position_id}"
+    updated_count = 0
+    sl_price_last = 0.0
 
-    try:
-        req = urllib.request.Request(url, data=patch_body, headers=auth_headers, method="PATCH")
-        with urllib.request.urlopen(req, context=ctx) as resp:
-            print(f"Set StopLoss=${sl_price} ({label}) on Position #{position_id} successfully!")
-            live_cache["data"] = None
-            live_cache["last_fetch"] = 0
-            return {
-                "status": "ok",
-                "positionId": position_id,
-                "stopLoss": sl_price,
-                "lossAmount": loss_amt,
-                "message": f"Set {label} Stop Loss at ${sl_price} on Position #{position_id}!"
-            }
-    except Exception as e:
-        print(f"Error setting stop loss on position {position_id}: {e}")
-        return {"status": "error", "message": f"Failed to set Stop Loss: {e}"}
+    for target_pos in target_positions:
+        p_id = target_pos.get("id") or target_pos.get("positionId")
+        side = str(target_pos.get("side", "buy")).lower()
+        qty = float(target_pos.get("qty") or 0.01)
+        entry_p = float(target_pos.get("avgPrice") or 0.0)
+
+        if entry_p <= 0 or qty <= 0:
+            continue
+
+        if loss_amt == 0.0 or str(loss_amount).lower() == "be":
+            sl_price = round(entry_p, 2)
+            label = "Break Even"
+        else:
+            if side == "buy":
+                sl_price = round(entry_p - (loss_amt / qty), 2)
+            else:
+                sl_price = round(entry_p + (loss_amt / qty), 2)
+            label = f"-${loss_amt:.2f}"
+
+        sl_price_last = sl_price
+        patch_body = json.dumps({"stopLoss": sl_price}).encode('utf-8')
+        url = f"{base_url}/trade/positions/{p_id}"
+
+        try:
+            req = urllib.request.Request(url, data=patch_body, headers=auth_headers, method="PATCH")
+            with urllib.request.urlopen(req, context=ctx) as resp:
+                updated_count += 1
+                print(f"Set StopLoss=${sl_price} ({label}) on Position #{p_id} successfully!")
+        except Exception as e:
+            print(f"Error setting stop loss on position {p_id}: {e}")
+
+    live_cache["data"] = None
+    live_cache["last_fetch"] = 0
+
+    if updated_count > 0:
+        return {
+            "status": "ok",
+            "updatedCount": updated_count,
+            "stopLoss": sl_price_last,
+            "message": f"Set {label} Stop Loss on {updated_count} position(s)!"
+        }
+    else:
+        return {"status": "error", "message": "Failed to set Stop Loss on positions"}
 
 def set_position_takeprofit(position_id, profit_amount):
     """Calculate exact price level for Max Power TP (+$10, +$15, +$20) and execute PATCH /trade/positions/{positionId}."""
     data = get_tradelocker_data()
     positions = data.get("openPositions", [])
-    
-    target_pos = None
-    for p in positions:
-        if str(p.get("id")) == str(position_id) or str(p.get("positionId")) == str(position_id):
-            target_pos = p
-            break
-            
-    if not target_pos:
-        return {"status": "error", "message": f"Position #{position_id} not found in open positions"}
 
-    side = str(target_pos.get("side", "buy")).lower()
-    qty = float(target_pos.get("qty") or 0.01)
-    entry_p = float(target_pos.get("avgPrice") or 0.0)
+    if not positions:
+        return {"status": "error", "message": "No open positions found"}
+
+    target_positions = []
+    if position_id and str(position_id).lower() != "all":
+        for p in positions:
+            if str(p.get("id")) == str(position_id) or str(p.get("positionId")) == str(position_id):
+                target_positions.append(p)
+                break
+
+    if not target_positions:
+        target_positions = positions
+
     profit_amt = float(profit_amount)
-
-    if entry_p <= 0 or qty <= 0:
-        return {"status": "error", "message": "Invalid entry price or quantity"}
-
-    if side == "buy":
-        tp_price = round(entry_p + (profit_amt / qty), 2)
-    else:
-        tp_price = round(entry_p - (profit_amt / qty), 2)
 
     env = session_config["environment"]
     base_url = f"https://{env}.tradelocker.com/backend-api"
@@ -544,25 +551,47 @@ def set_position_takeprofit(position_id, profit_amount):
     auth_headers["Authorization"] = f"Bearer {token}"
     auth_headers["accNum"] = str(acc_num)
 
-    patch_body = json.dumps({"takeProfit": tp_price}).encode('utf-8')
-    url = f"{base_url}/trade/positions/{position_id}"
+    updated_count = 0
+    tp_price_last = 0.0
 
-    try:
-        req = urllib.request.Request(url, data=patch_body, headers=auth_headers, method="PATCH")
-        with urllib.request.urlopen(req, context=ctx) as resp:
-            print(f"Set TakeProfit=${tp_price} (+${profit_amt:.2f}) on Position #{position_id} successfully!")
-            live_cache["data"] = None
-            live_cache["last_fetch"] = 0
-            return {
-                "status": "ok",
-                "positionId": position_id,
-                "takeProfit": tp_price,
-                "profitAmount": profit_amt,
-                "message": f"Set Max Power +${profit_amt:.2f} Take Profit at ${tp_price} on Position #{position_id}!"
-            }
-    except Exception as e:
-        print(f"Error setting take profit on position {position_id}: {e}")
-        return {"status": "error", "message": f"Failed to set Take Profit: {e}"}
+    for target_pos in target_positions:
+        p_id = target_pos.get("id") or target_pos.get("positionId")
+        side = str(target_pos.get("side", "buy")).lower()
+        qty = float(target_pos.get("qty") or 0.01)
+        entry_p = float(target_pos.get("avgPrice") or 0.0)
+
+        if entry_p <= 0 or qty <= 0:
+            continue
+
+        if side == "buy":
+            tp_price = round(entry_p + (profit_amt / qty), 2)
+        else:
+            tp_price = round(entry_p - (profit_amt / qty), 2)
+
+        tp_price_last = tp_price
+        patch_body = json.dumps({"takeProfit": tp_price}).encode('utf-8')
+        url = f"{base_url}/trade/positions/{p_id}"
+
+        try:
+            req = urllib.request.Request(url, data=patch_body, headers=auth_headers, method="PATCH")
+            with urllib.request.urlopen(req, context=ctx) as resp:
+                updated_count += 1
+                print(f"Set TakeProfit=${tp_price} (+${profit_amt:.2f}) on Position #{p_id} successfully!")
+        except Exception as e:
+            print(f"Error setting take profit on position {p_id}: {e}")
+
+    live_cache["data"] = None
+    live_cache["last_fetch"] = 0
+
+    if updated_count > 0:
+        return {
+            "status": "ok",
+            "updatedCount": updated_count,
+            "takeProfit": tp_price_last,
+            "message": f"Set Max Power +${profit_amt:.2f} Take Profit on {updated_count} position(s)!"
+        }
+    else:
+        return {"status": "error", "message": "Failed to set Take Profit on positions"}
 
 def close_nas100_positions():
     """Execute TradeLocker REST API call to market close all NAS100 positions."""
