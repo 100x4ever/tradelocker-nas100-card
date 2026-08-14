@@ -228,20 +228,40 @@ function renderData() {
         }
     }
 
-    // --- 3. DYNAMIC POKEMON MOOD ARTWORK SWITCHING BASED ON OPEN PNL ---
+    // --- 3. DYNAMIC POKEMON MOOD ARTWORK SWITCHING (BULL VS BEAR BASED ON POSITION SIDE) ---
     const artImg = document.getElementById('cardArtImg');
     if (artImg) {
-        let selectedArt = 'art_neutral.jpg';
+        let isShort = false;
+        if (nasPositions.length > 0) {
+            let buyLots = 0;
+            let sellLots = 0;
+            nasPositions.forEach(p => {
+                const side = (p.side || 'buy').toLowerCase();
+                const qty = parseFloat(p.qty || 0.01);
+                if (side === 'sell') sellLots += qty;
+                else buyLots += qty;
+            });
+            if (sellLots > buyLots) {
+                isShort = true;
+            } else if (sellLots === buyLots && sellLots > 0) {
+                isShort = (nasPositions[0].side || '').toLowerCase() === 'sell';
+            }
+        }
+
+        // Use 'bear_' prefix for SHORT positions, and 'art_' prefix for LONG/Neutral positions!
+        const prefix = isShort ? 'bear_' : 'art_';
+
+        let selectedArt = `${prefix}neutral.jpg`;
         if (nasOpenPnLVal >= 10.0) {
-            selectedArt = 'art_green_double.jpg';   // Excited Double Digit Green Victory Bull
+            selectedArt = `${prefix}green_double.jpg`;
         } else if (nasOpenPnLVal > 2.0) {
-            selectedArt = 'art_green_single.jpg';   // Happy Single Digit Green Smiling Bull
+            selectedArt = `${prefix}green_single.jpg`;
         } else if (nasOpenPnLVal >= -2.0) {
-            selectedArt = 'art_neutral.jpg';        // Chill Neutral Bull
+            selectedArt = `${prefix}neutral.jpg`;
         } else if (nasOpenPnLVal > -10.0) {
-            selectedArt = 'art_red_single.jpg';      // Worried Single Digit Red Sweating Bull
+            selectedArt = `${prefix}red_single.jpg`;
         } else {
-            selectedArt = 'art_red_double.jpg';      // Fiery Double Digit Red Warrior Bull
+            selectedArt = `${prefix}red_double.jpg`;
         }
 
         if (!artImg.src.includes(selectedArt)) {
