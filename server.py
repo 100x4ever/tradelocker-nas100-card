@@ -422,7 +422,7 @@ def get_tradelocker_data(retry_on_401=True):
         return live_cache["data"] or get_mock_summary_data()
 
 def set_position_stoploss(position_id, loss_amount):
-    """Calculate exact price level for -$5 or -$10 loss and execute PATCH /trade/positions/{positionId}."""
+    """Calculate exact price level for Break Even (0.0), -$5 or -$10 loss and execute PATCH /trade/positions/{positionId}."""
     data = get_tradelocker_data()
     positions = data.get("openPositions", [])
     
@@ -438,15 +438,25 @@ def set_position_stoploss(position_id, loss_amount):
     side = str(target_pos.get("side", "buy")).lower()
     qty = float(target_pos.get("qty") or 0.01)
     entry_p = float(target_pos.get("avgPrice") or 0.0)
-    loss_amt = float(loss_amount)
+    
+    try:
+        loss_amt = float(loss_amount)
+    except (ValueError, TypeError):
+        loss_amt = 0.0
 
-    if qty <= 0 or entry_p <= 0:
-        return {"status": "error", "message": "Invalid position quantity or entry price"}
+    if entry_p <= 0:
+        return {"status": "error", "message": "Invalid entry price for position"}
 
-    if side == "buy":
-        sl_price = round(entry_p - (loss_amt / qty), 2)
+    # Break Even (0.0 loss amount)
+    if loss_amt == 0.0 or str(loss_amount).lower() == "be":
+        sl_price = round(entry_p, 2)
+        label = "Break Even"
     else:
-        sl_price = round(entry_p + (loss_amt / qty), 2)
+        if side == "buy":
+            sl_price = round(entry_p - (loss_amt / qty), 2)
+        else:
+            sl_price = round(entry_p + (loss_amt / qty), 2)
+        label = f"-${loss_amt:.2f}"
 
     env = session_config["environment"]
     base_url = f"https://{env}.tradelocker.com/backend-api"
@@ -473,7 +483,7 @@ def set_position_stoploss(position_id, loss_amount):
     try:
         req = urllib.request.Request(url, data=patch_body, headers=auth_headers, method="PATCH")
         with urllib.request.urlopen(req, context=ctx) as resp:
-            print(f"Set StopLoss=${sl_price} (-${loss_amt}) on Position #{position_id} successfully!")
+            print(f"Set StopLoss=${sl_price} ({label}) on Position #{position_id} successfully!")
             live_cache["data"] = None
             live_cache["last_fetch"] = 0
             return {
@@ -481,7 +491,7 @@ def set_position_stoploss(position_id, loss_amount):
                 "positionId": position_id,
                 "stopLoss": sl_price,
                 "lossAmount": loss_amt,
-                "message": f"Set -${loss_amt:.2f} Stop Loss at ${sl_price} on Position #{position_id}!"
+                "message": f"Set {label} Stop Loss at ${sl_price} on Position #{position_id}!"
             }
     except Exception as e:
         print(f"Error setting stop loss on position {position_id}: {e}")
@@ -620,7 +630,7 @@ class TradeLockerHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
         if self.path == '/api/set-stoploss':
             pos_id = payload.get("positionId")
-            amount = payload.get("amount", 5.0)
+            amount = payload.get("amount", 0.0)
             res = set_position_stoploss(pos_id, amount)
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')

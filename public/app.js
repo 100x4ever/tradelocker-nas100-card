@@ -40,8 +40,9 @@ function initEventListeners() {
         });
     }
 
-    // Defensive Move: Set -$5 and -$10 Stop Loss
+    // Defensive Move: Set Break Even, -$5 and -$10 Stop Loss
     const defSelect = document.getElementById('defPosSelect');
+    const btnSlBe = document.getElementById('btnSlBe');
     const btnSl5 = document.getElementById('btnSl5');
     const btnSl10 = document.getElementById('btnSl10');
 
@@ -49,6 +50,7 @@ function initEventListeners() {
         defSelect.addEventListener('change', (e) => {
             const selectedId = e.target.value;
             const hasSelection = Boolean(selectedId);
+            if (btnSlBe) btnSlBe.disabled = !hasSelection;
             if (btnSl5) btnSl5.disabled = !hasSelection;
             if (btnSl10) btnSl10.disabled = !hasSelection;
         });
@@ -61,9 +63,11 @@ function initEventListeners() {
             return;
         }
 
-        const confirmed = confirm(`Apply Defensive Shield: Set -$${amount}.00 Stop Loss on Position #${posId}?`);
+        const label = amount === 0 ? "Break Even (Exact Entry Price)" : `-$${amount}.00`;
+        const confirmed = confirm(`Apply Defensive Shield: Set ${label} Stop Loss on Position #${posId}?`);
         if (!confirmed) return;
 
+        if (btnSlBe) btnSlBe.disabled = true;
         if (btnSl5) btnSl5.disabled = true;
         if (btnSl10) btnSl10.disabled = true;
 
@@ -84,12 +88,14 @@ function initEventListeners() {
             alert("Error setting Stop Loss: " + err.message);
         } finally {
             if (defSelect && defSelect.value) {
+                if (btnSlBe) btnSlBe.disabled = false;
                 if (btnSl5) btnSl5.disabled = false;
                 if (btnSl10) btnSl10.disabled = false;
             }
         }
     };
 
+    if (btnSlBe) btnSlBe.addEventListener('click', () => executeStopLoss(0.0));
     if (btnSl5) btnSl5.addEventListener('click', () => executeStopLoss(5.0));
     if (btnSl10) btnSl10.addEventListener('click', () => executeStopLoss(10.0));
 }
@@ -134,6 +140,7 @@ function renderData() {
 
     // --- POPULATE DEFENSIVE MOVE POSITION SELECTOR ---
     const defSelect = document.getElementById('defPosSelect');
+    const btnSlBe = document.getElementById('btnSlBe');
     const btnSl5 = document.getElementById('btnSl5');
     const btnSl10 = document.getElementById('btnSl10');
 
@@ -141,6 +148,7 @@ function renderData() {
         const currentSelected = defSelect.value;
         if (nasPositions.length === 0) {
             defSelect.innerHTML = `<option value="">No Open Positions</option>`;
+            if (btnSlBe) btnSlBe.disabled = true;
             if (btnSl5) btnSl5.disabled = true;
             if (btnSl10) btnSl10.disabled = true;
         } else {
@@ -157,11 +165,13 @@ function renderData() {
 
             if (currentSelected && nasPositions.some(p => (p.id || p.positionId) === currentSelected)) {
                 defSelect.value = currentSelected;
+                if (btnSlBe) btnSlBe.disabled = false;
                 if (btnSl5) btnSl5.disabled = false;
                 if (btnSl10) btnSl10.disabled = false;
             } else if (nasPositions.length === 1) {
                 // Auto select if only 1 position exists
                 defSelect.value = nasPositions[0].id || nasPositions[0].positionId;
+                if (btnSlBe) btnSlBe.disabled = false;
                 if (btnSl5) btnSl5.disabled = false;
                 if (btnSl10) btnSl10.disabled = false;
             }
