@@ -24,7 +24,6 @@
                 <!-- Card Header -->
                 <div class="card-header-bar">
                     <div class="card-identity">
-                        <span class="card-stage">STAGE 2 • INDEX SPELL</span>
                         <h2 class="card-title">NAS100</h2>
                     </div>
                     <div class="card-hp-group">
@@ -42,7 +41,7 @@
 
                 <!-- Card Moves Box -->
                 <div class="card-moves-box">
-                    <!-- Move 1: NAS100 Open PnL & Take Profit Buttons -->
+                    <!-- Move 1: NAS100 Open PnL, TP Buttons & NOW Market Close Button -->
                     <div class="move-row unrealized-move-row">
                         <div class="move-cost">
                             <span class="energy-icon electric">⚡</span>
@@ -57,12 +56,13 @@
                                     <button class="tp-btn tp-10" id="btnTp10" disabled>+$10</button>
                                     <button class="tp-btn tp-15" id="btnTp15" disabled>+$15</button>
                                     <button class="tp-btn tp-20" id="btnTp20" disabled>+$20</button>
+                                    <button class="tp-btn btn-now" id="btnCloseNow" disabled>⚡ NOW</button>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Move 2: Defensive Shield (Set BE, +$5, -$5 & -$10 Stop Loss) -->
+                    <!-- Move 2: Defensive Shield (BE, +$5, -$5, -$10 & STALK Trailing Stop) -->
                     <div class="move-row def-move-row">
                         <div class="move-cost">
                             <span class="energy-icon shield">🛡️</span>
@@ -76,6 +76,7 @@
                                 <button class="def-btn sl-p5" id="btnSlP5" disabled>+$5</button>
                                 <button class="def-btn sl-5" id="btnSl5" disabled>-$5</button>
                                 <button class="def-btn sl-10" id="btnSl10" disabled>-$10</button>
+                                <button class="def-btn sl-stalk" id="btnStalk" disabled>🐾 STALK</button>
                             </div>
                         </div>
                     </div>

@@ -1,6 +1,7 @@
 let liveSummaryData = null;
 let lastRefreshTimestamp = Date.now();
 const autoSlNotified = new Set();
+let isStalkingActive = false;
 
 document.addEventListener('DOMContentLoaded', () => {
     initEventListeners();
@@ -11,16 +12,78 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initEventListeners() {
+    // NOW Button: Instant Market Close ALL open positions
+    const btnCloseNow = document.getElementById('btnCloseNow');
+    if (btnCloseNow) {
+        btnCloseNow.addEventListener('click', async () => {
+            const confirmed = confirm("Unrealized Strike NOW: Market Close ALL active open positions immediately?");
+            if (!confirmed) return;
+
+            btnCloseNow.disabled = true;
+            btnCloseNow.innerText = "CLOSING...";
+
+            try {
+                const res = await fetch('/api/close-all-nas100', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await res.json();
+
+                alert(data.message || "All positions market closed NOW!");
+                fetchPortfolioSummary();
+            } catch (err) {
+                alert("Market close error: " + err.message);
+            } finally {
+                btnCloseNow.disabled = false;
+                btnCloseNow.innerText = "⚡ NOW";
+            }
+        });
+    }
+
     // Defensive Move: Set Break Even (BE), Positive Lock (+$5), -$5 and -$10 Stop Loss
     const btnSlBe = document.getElementById('btnSlBe');
     const btnSlP5 = document.getElementById('btnSlP5');
     const btnSl5 = document.getElementById('btnSl5');
     const btnSl10 = document.getElementById('btnSl10');
+    const btnStalk = document.getElementById('btnStalk');
 
     // Max Power Move: Set +$10, +$15, +$20 Take Profit
     const btnTp10 = document.getElementById('btnTp10');
     const btnTp15 = document.getElementById('btnTp15');
     const btnTp20 = document.getElementById('btnTp20');
+
+    // STALK Button: Toggle & Activate Trailing Stop Loss on active positions
+    if (btnStalk) {
+        btnStalk.addEventListener('click', async () => {
+            const nextState = !isStalkingActive;
+            const confirmed = confirm(`Defensive Shield: ${nextState ? 'Activate STALK Mode (Convert Stop Loss to Trailing Stop)' : 'Deactivate STALK Mode'} on ALL open positions?`);
+            if (!confirmed) return;
+
+            btnStalk.disabled = true;
+            try {
+                const res = await fetch('/api/set-trailing-stop', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ positionId: "all", trailingOffset: 10.0 })
+                });
+                const data = await res.json();
+
+                if (data.status === 'ok') {
+                    isStalkingActive = nextState;
+                    btnStalk.classList.toggle('active', isStalkingActive);
+                    btnStalk.innerText = isStalkingActive ? "🐾 STALKING" : "🐾 STALK";
+                    alert(data.message || "STALK Trailing Stop mode activated!");
+                    fetchPortfolioSummary();
+                } else {
+                    alert("Failed to activate STALK: " + (data.message || "Could not set trailing stop"));
+                }
+            } catch (err) {
+                alert("Error setting trailing stop: " + err.message);
+            } finally {
+                btnStalk.disabled = false;
+            }
+        });
+    }
 
     const executeStopLoss = async (amount) => {
         let label = "";
@@ -145,20 +208,33 @@ function renderData() {
     }
 
     // --- ENABLE / DISABLE BUTTONS BASED ON OPEN POSITIONS ---
+    const btnCloseNow = document.getElementById('btnCloseNow');
     const btnSlBe = document.getElementById('btnSlBe');
     const btnSlP5 = document.getElementById('btnSlP5');
     const btnSl5 = document.getElementById('btnSl5');
     const btnSl10 = document.getElementById('btnSl10');
+    const btnStalk = document.getElementById('btnStalk');
 
     const btnTp10 = document.getElementById('btnTp10');
     const btnTp15 = document.getElementById('btnTp15');
     const btnTp20 = document.getElementById('btnTp20');
 
     const hasOpenPositions = nasPositions.length > 0;
+
+    if (btnCloseNow) btnCloseNow.disabled = !hasOpenPositions;
     if (btnSlBe) btnSlBe.disabled = !hasOpenPositions;
     if (btnSlP5) btnSlP5.disabled = !hasOpenPositions;
     if (btnSl5) btnSl5.disabled = !hasOpenPositions;
     if (btnSl10) btnSl10.disabled = !hasOpenPositions;
+    if (btnStalk) {
+        btnStalk.disabled = !hasOpenPositions;
+        const hasTrailing = nasPositions.some(p => Boolean(p.trailingOffset));
+        if (hasTrailing) {
+            isStalkingActive = true;
+            btnStalk.classList.add('active');
+            btnStalk.innerText = "🐾 STALKING";
+        }
+    }
 
     if (btnTp10) btnTp10.disabled = !hasOpenPositions;
     if (btnTp15) btnTp15.disabled = !hasOpenPositions;

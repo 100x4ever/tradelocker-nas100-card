@@ -378,6 +378,7 @@ def get_tradelocker_data(retry_on_401=True):
             unrealized = float(p_dict.get("unrealizedPl") or (pos[9] if len(pos)>9 else 0.0))
             stop_loss = p_dict.get("stopLossId") or p_dict.get("stopLoss")
             take_profit = p_dict.get("takeProfitId") or p_dict.get("takeProfit")
+            trailing_offset = p_dict.get("trailingOffset")
 
             p_dict["id"] = p_id
             p_dict["instrumentName"] = inst_name
@@ -387,6 +388,7 @@ def get_tradelocker_data(retry_on_401=True):
             p_dict["unrealizedPl"] = unrealized
             p_dict["stopLoss"] = stop_loss
             p_dict["takeProfit"] = take_profit
+            p_dict["trailingOffset"] = trailing_offset
 
             open_positions.append(p_dict)
 
@@ -497,14 +499,12 @@ def set_position_stoploss(position_id, loss_amount):
             sl_price = round(entry_p, 2)
             label = "Break Even"
         elif val_amt > 0:
-            # Positive +$5 Stop Loss / Profit Lock
             if side == "buy":
                 sl_price = round(entry_p + (val_amt / qty), 2)
             else:
                 sl_price = round(entry_p - (val_amt / qty), 2)
             label = f"+${val_amt:.2f}"
         else:
-            # Negative -$5 / -$10 Stop Loss
             abs_val = abs(val_amt)
             if side == "buy":
                 sl_price = round(entry_p - (abs_val / qty), 2)
@@ -536,6 +536,73 @@ def set_position_stoploss(position_id, loss_amount):
         }
     else:
         return {"status": "error", "message": "Failed to set Stop Loss on positions"}
+
+def set_position_trailing_stop(position_id, offset):
+    """Set trailing stop offset on position(s) via PATCH /trade/positions/{positionId}."""
+    data = get_tradelocker_data()
+    positions = data.get("openPositions", [])
+
+    if not positions:
+        return {"status": "error", "message": "No open positions found"}
+
+    target_positions = []
+    if position_id and str(position_id).lower() != "all":
+        for p in positions:
+            if str(p.get("id")) == str(position_id) or str(p.get("positionId")) == str(position_id):
+                target_positions.append(p)
+                break
+
+    if not target_positions:
+        target_positions = positions
+
+    offset_val = float(offset if offset is not None else 10.0)
+
+    env = session_config["environment"]
+    base_url = f"https://{env}.tradelocker.com/backend-api"
+
+    headers = {
+        'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'application/json'
+    }
+
+    token = session_config["token"]
+    if not token:
+        token = get_jwt_token()
+
+    acc_num = session_config["acc_num"] or "18"
+
+    auth_headers = dict(headers)
+    auth_headers["Authorization"] = f"Bearer {token}"
+    auth_headers["accNum"] = str(acc_num)
+
+    updated_count = 0
+
+    for target_pos in target_positions:
+        p_id = target_pos.get("id") or target_pos.get("positionId")
+        patch_body = json.dumps({"trailingOffset": offset_val}).encode('utf-8')
+        url = f"{base_url}/trade/positions/{p_id}"
+
+        try:
+            req = urllib.request.Request(url, data=patch_body, headers=auth_headers, method="PATCH")
+            with urllib.request.urlopen(req, context=ctx) as resp:
+                updated_count += 1
+                print(f"Set trailingOffset={offset_val} (STALK Trailing Stop) on Position #{p_id} successfully!")
+        except Exception as e:
+            print(f"Error setting trailing stop on position {p_id}: {e}")
+
+    live_cache["data"] = None
+    live_cache["last_fetch"] = 0
+
+    if updated_count > 0:
+        return {
+            "status": "ok",
+            "updatedCount": updated_count,
+            "trailingOffset": offset_val,
+            "message": f"STALK Activated! Trailing Stop enabled on {updated_count} position(s)!"
+        }
+    else:
+        return {"status": "error", "message": "Failed to set Trailing Stop on positions"}
 
 def set_position_takeprofit(position_id, profit_amount):
     """Calculate exact price level for Max Power TP (+$10, +$15, +$20) and execute PATCH /trade/positions/{positionId}."""
@@ -747,7 +814,16 @@ class TradeLockerHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         body_bytes = self.rfile.read(content_len) if content_len > 0 else b'{}'
         payload = json.loads(body_bytes.decode('utf-8')) if body_bytes else {}
 
-        if self.path == '/api/set-takeprofit':
+        if self.path == '/api/set-trailing-stop':
+            pos_id = payload.get("positionId", "all")
+            offset = payload.get("trailingOffset", 10.0)
+            res = set_position_trailing_stop(pos_id, offset)
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode('utf-8'))
+
+        elif self.path == '/api/set-takeprofit':
             pos_id = payload.get("positionId")
             amount = payload.get("amount", 10.0)
             res = set_position_takeprofit(pos_id, amount)
