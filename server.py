@@ -189,12 +189,10 @@ def refresh_metadata(auth_headers, base_url, acc_id):
         return
 
     try:
-        # Config
         req = urllib.request.Request(f"{base_url}/trade/config", headers=auth_headers)
         with urllib.request.urlopen(req, context=ctx) as resp:
             meta_cache["config"] = json.loads(resp.read().decode('utf-8')).get("d", {})
 
-        # Instruments
         req = urllib.request.Request(f"{base_url}/trade/accounts/{acc_id}/instruments", headers=auth_headers)
         with urllib.request.urlopen(req, context=ctx) as resp:
             instruments = json.loads(resp.read().decode('utf-8')).get("d", {}).get("instruments", [])
@@ -204,13 +202,11 @@ def refresh_metadata(auth_headers, base_url, acc_id):
                 inst_map[str(inst.get("id"))] = inst.get("name") or inst.get("symbol")
             meta_cache["inst_map"] = inst_map
 
-        # Orders History
         req = urllib.request.Request(f"{base_url}/trade/accounts/{acc_id}/ordersHistory", headers=auth_headers)
         with urllib.request.urlopen(req, context=ctx) as resp:
             history = json.loads(resp.read().decode('utf-8')).get("d", {}).get("ordersHistory", [])
             meta_cache["history"] = history
 
-        # Process closed trades & instrument metrics
         config = meta_cache["config"]
         hist_cols = [c["id"] for c in config.get("ordersHistoryConfig", {}).get("columns", [])]
         inst_map = meta_cache["inst_map"]
@@ -360,11 +356,23 @@ def get_tradelocker_data(retry_on_401=True):
 
         for pos in positions_data:
             p_dict = dict(zip(pos_cols, pos)) if pos_cols else {"unrealizedPl": pos[9] if len(pos)>9 else 0.0}
+            p_id = str(p_dict.get("id") or (pos[0] if len(pos)>0 else ""))
             inst_id = str(p_dict.get("tradableInstrumentId") or (pos[1] if len(pos)>1 else ""))
             inst_name = inst_map.get(inst_id, "NAS100" if inst_id=="3884" else f"Inst-{inst_id}")
+            side = str(p_dict.get("side") or (pos[3] if len(pos)>3 else "buy"))
+            qty = float(p_dict.get("qty") or (pos[4] if len(pos)>4 else 0.01))
+            entry_price = float(p_dict.get("avgPrice") or (pos[5] if len(pos)>5 else 0.0))
             unrealized = float(p_dict.get("unrealizedPl") or (pos[9] if len(pos)>9 else 0.0))
+            stop_loss = p_dict.get("stopLossId") or p_dict.get("stopLoss")
 
+            p_dict["id"] = p_id
             p_dict["instrumentName"] = inst_name
+            p_dict["side"] = side
+            p_dict["qty"] = qty
+            p_dict["avgPrice"] = entry_price
+            p_dict["unrealizedPl"] = unrealized
+            p_dict["stopLoss"] = stop_loss
+
             open_positions.append(p_dict)
 
             if "NAS" in inst_name.upper() or "US100" in inst_name.upper() or inst_id == "3884":
@@ -412,6 +420,72 @@ def get_tradelocker_data(retry_on_401=True):
     except Exception as e:
         print(f"Exception in get_tradelocker_data: {e}")
         return live_cache["data"] or get_mock_summary_data()
+
+def set_position_stoploss(position_id, loss_amount):
+    """Calculate exact price level for -$5 or -$10 loss and execute PATCH /trade/positions/{positionId}."""
+    data = get_tradelocker_data()
+    positions = data.get("openPositions", [])
+    
+    target_pos = None
+    for p in positions:
+        if str(p.get("id")) == str(position_id) or str(p.get("positionId")) == str(position_id):
+            target_pos = p
+            break
+            
+    if not target_pos:
+        return {"status": "error", "message": f"Position #{position_id} not found in open positions"}
+
+    side = str(target_pos.get("side", "buy")).lower()
+    qty = float(target_pos.get("qty") or 0.01)
+    entry_p = float(target_pos.get("avgPrice") or 0.0)
+    loss_amt = float(loss_amount)
+
+    if qty <= 0 or entry_p <= 0:
+        return {"status": "error", "message": "Invalid position quantity or entry price"}
+
+    if side == "buy":
+        sl_price = round(entry_p - (loss_amt / qty), 2)
+    else:
+        sl_price = round(entry_p + (loss_amt / qty), 2)
+
+    env = session_config["environment"]
+    base_url = f"https://{env}.tradelocker.com/backend-api"
+
+    headers = {
+        'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'application/json'
+    }
+
+    token = session_config["token"]
+    if not token:
+        token = get_jwt_token()
+
+    acc_num = session_config["acc_num"] or "17"
+
+    auth_headers = dict(headers)
+    auth_headers["Authorization"] = f"Bearer {token}"
+    auth_headers["accNum"] = str(acc_num)
+
+    patch_body = json.dumps({"stopLoss": sl_price}).encode('utf-8')
+    url = f"{base_url}/trade/positions/{position_id}"
+
+    try:
+        req = urllib.request.Request(url, data=patch_body, headers=auth_headers, method="PATCH")
+        with urllib.request.urlopen(req, context=ctx) as resp:
+            print(f"Set StopLoss=${sl_price} (-${loss_amt}) on Position #{position_id} successfully!")
+            live_cache["data"] = None
+            live_cache["last_fetch"] = 0
+            return {
+                "status": "ok",
+                "positionId": position_id,
+                "stopLoss": sl_price,
+                "lossAmount": loss_amt,
+                "message": f"Set -${loss_amt:.2f} Stop Loss at ${sl_price} on Position #{position_id}!"
+            }
+    except Exception as e:
+        print(f"Error setting stop loss on position {position_id}: {e}")
+        return {"status": "error", "message": f"Failed to set Stop Loss: {e}"}
 
 def close_nas100_positions():
     """Execute TradeLocker REST API call to market close all NAS100 positions."""
@@ -500,8 +574,7 @@ def get_mock_summary_data():
         },
         "stochastics": get_default_stochastics(),
         "openPositions": [
-            { "id": "72057594045519539", "instrumentName": "NAS100", "side": "SELL", "qty": 0.28, "avgPrice": 30094.97, "unrealizedPl": -1.22 },
-            { "id": "72057594045519380", "instrumentName": "NAS100", "side": "SELL", "qty": 0.28, "avgPrice": 30075.33, "unrealizedPl": -6.55 }
+            { "id": "72057594045543270", "instrumentName": "NAS100", "side": "SELL", "qty": 0.50, "avgPrice": 30061.15, "unrealizedPl": 0.36 }
         ],
         "closedTrades": []
     }
@@ -545,7 +618,16 @@ class TradeLockerHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         body_bytes = self.rfile.read(content_len) if content_len > 0 else b'{}'
         payload = json.loads(body_bytes.decode('utf-8')) if body_bytes else {}
 
-        if self.path == '/api/close-all-nas100':
+        if self.path == '/api/set-stoploss':
+            pos_id = payload.get("positionId")
+            amount = payload.get("amount", 5.0)
+            res = set_position_stoploss(pos_id, amount)
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode('utf-8'))
+
+        elif self.path == '/api/close-all-nas100':
             res = close_nas100_positions()
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')

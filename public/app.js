@@ -39,6 +39,59 @@ function initEventListeners() {
             }
         });
     }
+
+    // Defensive Move: Set -$5 and -$10 Stop Loss
+    const defSelect = document.getElementById('defPosSelect');
+    const btnSl5 = document.getElementById('btnSl5');
+    const btnSl10 = document.getElementById('btnSl10');
+
+    if (defSelect) {
+        defSelect.addEventListener('change', (e) => {
+            const selectedId = e.target.value;
+            const hasSelection = Boolean(selectedId);
+            if (btnSl5) btnSl5.disabled = !hasSelection;
+            if (btnSl10) btnSl10.disabled = !hasSelection;
+        });
+    }
+
+    const executeStopLoss = async (amount) => {
+        const posId = defSelect ? defSelect.value : null;
+        if (!posId) {
+            alert("Please select an open position first!");
+            return;
+        }
+
+        const confirmed = confirm(`Apply Defensive Shield: Set -$${amount}.00 Stop Loss on Position #${posId}?`);
+        if (!confirmed) return;
+
+        if (btnSl5) btnSl5.disabled = true;
+        if (btnSl10) btnSl10.disabled = true;
+
+        try {
+            const res = await fetch('/api/set-stoploss', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ positionId: posId, amount: amount })
+            });
+            const data = await res.json();
+            if (data.status === 'ok') {
+                alert(data.message);
+                fetchPortfolioSummary();
+            } else {
+                alert("Failed: " + (data.message || "Could not set Stop Loss"));
+            }
+        } catch (err) {
+            alert("Error setting Stop Loss: " + err.message);
+        } finally {
+            if (defSelect && defSelect.value) {
+                if (btnSl5) btnSl5.disabled = false;
+                if (btnSl10) btnSl10.disabled = false;
+            }
+        }
+    };
+
+    if (btnSl5) btnSl5.addEventListener('click', () => executeStopLoss(5.0));
+    if (btnSl10) btnSl10.addEventListener('click', () => executeStopLoss(10.0));
 }
 
 async function fetchPortfolioSummary() {
@@ -72,11 +125,48 @@ function renderData() {
     nasOpenEl.innerText = `${nasOpenPnLVal >= 0 ? '+' : ''}$${nasOpenPnLVal.toFixed(2)}`;
     nasOpenEl.className = `move-pnl ${nasOpenPnLVal > 0 ? 'positive' : nasOpenPnLVal < 0 ? 'negative' : 'neutral'}`;
 
-    const nasPositionsCount = openPositions.filter(p => {
+    const nasPositions = openPositions.filter(p => {
         const name = (p.instrumentName || '').toUpperCase();
         return name.includes('NAS') || name.includes('100') || p.tradableInstrumentId === '3884';
-    }).length;
-    document.getElementById('cardNasOpenSub').innerText = `NAS100 Open PnL (${nasPositionsCount} Active Positions)`;
+    });
+    
+    document.getElementById('cardNasOpenSub').innerText = `NAS100 Open PnL (${nasPositions.length} Active Positions)`;
+
+    // --- POPULATE DEFENSIVE MOVE POSITION SELECTOR ---
+    const defSelect = document.getElementById('defPosSelect');
+    const btnSl5 = document.getElementById('btnSl5');
+    const btnSl10 = document.getElementById('btnSl10');
+
+    if (defSelect) {
+        const currentSelected = defSelect.value;
+        if (nasPositions.length === 0) {
+            defSelect.innerHTML = `<option value="">No Open Positions</option>`;
+            if (btnSl5) btnSl5.disabled = true;
+            if (btnSl10) btnSl10.disabled = true;
+        } else {
+            defSelect.innerHTML = `<option value="">Select Position...</option>` + nasPositions.map(p => {
+                const pid = p.id || p.positionId;
+                const side = (p.side || 'buy').toUpperCase();
+                const qty = p.qty || 0.01;
+                const entry = parseFloat(p.avgPrice || 0).toFixed(2);
+                const slText = p.stopLoss ? ` [SL $${parseFloat(p.stopLoss).toFixed(2)}]` : '';
+                return `<option value="${pid}" ${pid === currentSelected ? 'selected' : ''}>
+                    #${pid.slice(-6)} (${side} ${qty}L @ ${entry})${slText}
+                </option>`;
+            }).join('');
+
+            if (currentSelected && nasPositions.some(p => (p.id || p.positionId) === currentSelected)) {
+                defSelect.value = currentSelected;
+                if (btnSl5) btnSl5.disabled = false;
+                if (btnSl10) btnSl10.disabled = false;
+            } else if (nasPositions.length === 1) {
+                // Auto select if only 1 position exists
+                defSelect.value = nasPositions[0].id || nasPositions[0].positionId;
+                if (btnSl5) btnSl5.disabled = false;
+                if (btnSl10) btnSl10.disabled = false;
+            }
+        }
+    }
 
     // --- 3. DYNAMIC POKEMON MOOD ARTWORK SWITCHING BASED ON OPEN PNL ---
     const artImg = document.getElementById('cardArtImg');
@@ -99,7 +189,7 @@ function renderData() {
         }
     }
 
-    // --- 4. Move 2: 5m REAL-TIME STOCHASTICS DISPLAY (Fast & Heavy) ---
+    // --- 4. Move 3: 5m REAL-TIME STOCHASTICS DISPLAY (Fast & Heavy) ---
     if (stochastics) {
         const sFast = stochastics.stoch_fast || stochastics.stoch_7_3_3 || { d: 35.0, status: 'NEUTRAL', class: 'neutral' };
         const sHeavy = stochastics.stoch_heavy || stochastics.stoch_40_1_4 || { d: 44.6, status: 'NEUTRAL', class: 'neutral' };
@@ -121,13 +211,13 @@ function renderData() {
         }
     }
 
-    // 5. Move 3: NAS100 Cumulative Realized PnL
+    // 5. Move 4: NAS100 Cumulative Realized PnL
     const nasTotalPnLEl = document.getElementById('cardTotalPnL');
     nasTotalPnLEl.innerText = `${nasMetric.pnl >= 0 ? '+' : ''}$${nasMetric.pnl.toFixed(2)}`;
     nasTotalPnLEl.className = `move-pnl ${nasMetric.pnl > 0 ? 'positive' : nasMetric.pnl < 0 ? 'negative' : 'neutral'}`;
     document.getElementById('cardClosedSub').innerText = `NAS100 Cumulative Realized PnL (${nasMetric.total} Executed Trades)`;
 
-    // 6. Move 4: NAS100 Win Rate & Record
+    // 6. Move 5: NAS100 Win Rate & Record
     document.getElementById('cardWinRate').innerText = `${nasMetric.winRate.toFixed(1)}%`;
     document.getElementById('cardWinLossSub').innerText = `${nasMetric.wins} Wins / ${nasMetric.losses} Losses (${nasMetric.winRate.toFixed(1)}% Accuracy)`;
 

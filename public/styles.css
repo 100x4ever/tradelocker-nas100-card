@@ -70,10 +70,10 @@ body {
     background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
     border: 5px solid #fbbf24;
     border-radius: 20px;
-    padding: 13px;
+    padding: 12px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 9px;
     box-shadow: 
         0 0 0 2px #78350f,
         0 16px 40px rgba(0, 0, 0, 0.85),
@@ -173,7 +173,7 @@ body {
 .card-art-frame {
     position: relative;
     width: 100%;
-    height: 250px;
+    height: 230px;
     border-radius: 14px;
     border: 3.5px solid #f59e0b;
     overflow: hidden;
@@ -200,7 +200,7 @@ body {
     background: rgba(15, 23, 42, 0.9);
     border: 1.5px solid #334155;
     border-radius: 12px;
-    padding: 7px;
+    padding: 6px;
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -264,6 +264,61 @@ body {
 .move-desc {
     font-size: 10px;
     color: var(--text-secondary);
+}
+
+/* DEFENSIVE SHIELD STOP LOSS STYLING */
+.def-header {
+    margin-bottom: 4px;
+}
+
+.def-pos-select {
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid #3b82f6;
+    color: #60a5fa;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 6px;
+    outline: none;
+    max-width: 190px;
+    text-overflow: ellipsis;
+}
+
+.def-btn-row {
+    display: flex;
+    gap: 6px;
+}
+
+.def-btn {
+    flex: 1;
+    background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+    border: 1px solid #60a5fa;
+    border-radius: 6px;
+    color: #ffffff;
+    font-family: var(--font-main);
+    font-size: 10px;
+    font-weight: 800;
+    padding: 5px 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    box-shadow: 0 2px 6px rgba(30, 58, 138, 0.4);
+}
+
+.def-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(37, 99, 235, 0.5);
+}
+
+.def-btn:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.def-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    border-color: #475569;
 }
 
 /* STOCHASTIC ORACLE DISPLAY STYLING (FAST & HEAVY) */
@@ -431,12 +486,15 @@ body {
         gap: 8px;
     }
     .card-art-frame {
-        height: 210px;
+        height: 190px;
     }
     .card-title {
         font-size: 14px;
     }
     .hp-val {
         font-size: 13px;
+    }
+    .def-pos-select {
+        max-width: 140px;
     }
 }

@@ -56,7 +56,26 @@
                         </div>
                     </div>
 
-                    <!-- Move 2: NAS100 5m Stochastic Oracle (Fast & Heavy) -->
+                    <!-- Move 2: Defensive Shield (Set -$5 & -$10 Stop Loss on selected position) -->
+                    <div class="move-row def-move-row">
+                        <div class="move-cost">
+                            <span class="energy-icon shield">🛡️</span>
+                        </div>
+                        <div class="move-info">
+                            <div class="move-header def-header">
+                                <span class="move-name">Defensive Shield</span>
+                                <select id="defPosSelect" class="def-pos-select">
+                                    <option value="">No Open Positions</option>
+                                </select>
+                            </div>
+                            <div class="def-btn-row">
+                                <button class="def-btn sl-5" id="btnSl5" disabled>🛡️ SET -$5 SL</button>
+                                <button class="def-btn sl-10" id="btnSl10" disabled>🛡️ SET -$10 SL</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Move 3: NAS100 5m Stochastic Oracle (Fast & Heavy) -->
                     <div class="move-row stoch-move-row">
                         <div class="move-cost">
                             <span class="energy-icon eye">👁️</span>
@@ -72,7 +91,7 @@
                         </div>
                     </div>
 
-                    <!-- Move 3: NAS100 Realized PnL -->
+                    <!-- Move 4: NAS100 Realized PnL -->
                     <div class="move-row">
                         <div class="move-cost">
                             <span class="energy-icon fire">🔥</span>
@@ -86,7 +105,7 @@
                         </div>
                     </div>
 
-                    <!-- Move 4: NAS100 Win Rate -->
+                    <!-- Move 5: NAS100 Win Rate -->
                     <div class="move-row">
                         <div class="move-cost">
                             <span class="energy-icon star">⭐</span>
