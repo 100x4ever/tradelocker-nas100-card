@@ -15,14 +15,14 @@ ctx = ssl.create_default_context()
 ctx.check_hostname = False
 ctx.verify_mode = ssl.CERT_NONE
 
-# User Session State (Locked to LIVE Account 812189)
+# User Session State (Locked to LIVE Account 814241)
 session_config = {
     "live_mode": True,
     "email": "jcollins92989@gmail.com",
     "password": "Pook&Buh9",
     "server": "HEROFX",
     "environment": "live",
-    "target_acc_id": "812189",
+    "target_acc_id": "814241",
     "token": None,
     "token_time": 0,
     "acc_id": None,
@@ -51,6 +51,9 @@ bars_cache = {
     "last_fetch": 0,
     "bars": []
 }
+
+# Track auto-triggered +$5 SL for position IDs to prevent duplicate calls
+auto_sl_triggered = set()
 
 def get_jwt_token():
     """Authenticate and fetch a fresh TradeLocker JWT token."""
@@ -82,14 +85,14 @@ def get_jwt_token():
             target_id = str(session_config["target_acc_id"])
             selected = None
             for a in accounts_data:
-                if str(a.get("id")) == target_id:
+                if str(a.get("id")) == target_id or str(a.get("accNum")) == target_id:
                     selected = a
                     break
             if not selected and accounts_data:
                 selected = accounts_data[0]
             if selected:
                 session_config["acc_id"] = str(selected.get("id"))
-                session_config["acc_num"] = str(selected.get("accNum", 1))
+                session_config["acc_num"] = str(selected.get("accNum", 18))
 
         print(f"[{time.strftime('%H:%M:%S')}] TradeLocker Auth Success! accId={session_config['acc_id']}, accNum={session_config['acc_num']}")
         return token
@@ -296,6 +299,16 @@ def get_default_stochastics():
         "stoch_heavy": {"k": 44.6, "d": 44.6, "status": "NEUTRAL", "class": "neutral"}
     }
 
+def check_and_apply_auto_stoploss(open_positions, nas_open_pnl):
+    """Automatically set Stop Loss to +$5.00 whenever PnL reaches +$10.00 (Victory Artwork)!"""
+    if nas_open_pnl >= 10.0:
+        for pos in open_positions:
+            p_id = str(pos.get("id") or pos.get("positionId"))
+            if p_id and p_id not in auto_sl_triggered:
+                print(f"[{time.strftime('%H:%M:%S')}] [AUTO SL] PnL reached +${nas_open_pnl:.2f} (Victory Artwork)! Auto-triggering +$5.00 Stop Loss on position #{p_id}")
+                auto_sl_triggered.add(p_id)
+                set_position_stoploss(p_id, 5.0)
+
 def get_tradelocker_data(retry_on_401=True):
     """Fetch live real-time account state, positions & Stochastics on EVERY request."""
     now = time.time()
@@ -316,8 +329,8 @@ def get_tradelocker_data(retry_on_401=True):
         if not token or (now - session_config.get("token_time", 0)) > 300:
             token = get_jwt_token()
 
-        acc_id = session_config["acc_id"] or "812189"
-        acc_num = session_config["acc_num"] or "17"
+        acc_id = session_config["acc_id"] or "814241"
+        acc_num = session_config["acc_num"] or "18"
 
         auth_headers = dict(headers)
         auth_headers["Authorization"] = f"Bearer {token}"
@@ -345,7 +358,7 @@ def get_tradelocker_data(retry_on_401=True):
         acc_cols = [c["id"] for c in config.get("accountDetailsConfig", {}).get("columns", [])]
         account_state = dict(zip(acc_cols, state_data)) if acc_cols and state_data else {}
 
-        balance = float(account_state.get("balance") or (state_data[0] if len(state_data) > 0 else 987.84))
+        balance = float(account_state.get("balance") or (state_data[0] if len(state_data) > 0 else 500.00))
         open_net_pnl = float(account_state.get("openNetPnL") or (state_data[23] if len(state_data) > 23 else 0.0))
         equity = balance + open_net_pnl
 
@@ -384,9 +397,12 @@ def get_tradelocker_data(retry_on_401=True):
             else:
                 open_pnl_by_inst["OTHER"] += unrealized
 
+        # AUTOMATIC +$5 STOP LOSS TRIGGER WHEN PNL REACHES +$10 (VICTORY ARTWORK)
+        check_and_apply_auto_stoploss(open_positions, open_pnl_by_inst["NAS100"])
+
         metrics = meta_cache.get("metrics") or {
-            "OVERALL": {"pnl": 29.44, "winRate": 66.7, "profitFactor": 36.38, "total": 21, "wins": 14, "losses": 7, "lots": 2.45},
-            "NAS100": {"pnl": 11.49, "winRate": 100.0, "profitFactor": 11.49, "total": 5, "wins": 5, "losses": 0, "lots": 0.95}
+            "OVERALL": {"pnl": 0.0, "winRate": 0.0, "profitFactor": 0.0, "total": 0, "wins": 0, "losses": 0, "lots": 0.0},
+            "NAS100": {"pnl": 0.0, "winRate": 0.0, "profitFactor": 0.0, "total": 0, "wins": 0, "losses": 0, "lots": 0.0}
         }
 
         result_data = {
@@ -459,7 +475,7 @@ def set_position_stoploss(position_id, loss_amount):
     if not token:
         token = get_jwt_token()
 
-    acc_num = session_config["acc_num"] or "17"
+    acc_num = session_config["acc_num"] or "18"
 
     auth_headers = dict(headers)
     auth_headers["Authorization"] = f"Bearer {token}"
@@ -554,7 +570,7 @@ def set_position_takeprofit(position_id, profit_amount):
     if not token:
         token = get_jwt_token()
 
-    acc_num = session_config["acc_num"] or "17"
+    acc_num = session_config["acc_num"] or "18"
 
     auth_headers = dict(headers)
     auth_headers["Authorization"] = f"Bearer {token}"
@@ -627,8 +643,8 @@ def close_nas100_positions():
     if not token:
         token = get_jwt_token()
 
-    acc_id = session_config["acc_id"] or "812189"
-    acc_num = session_config["acc_num"] or "17"
+    acc_id = session_config["acc_id"] or "814241"
+    acc_num = session_config["acc_num"] or "18"
 
     auth_headers = dict(headers)
     auth_headers["Authorization"] = f"Bearer {token}"
@@ -668,29 +684,27 @@ def close_nas100_positions():
 def get_mock_summary_data():
     return {
         "account": {
-            "accId": "812189",
-            "accNum": 17,
+            "accId": "814241",
+            "accNum": 18,
             "server": "HEROFX",
             "environment": "live",
-            "balance": 987.84,
-            "equity": 980.07,
-            "openPnL": -7.77,
-            "positionsCount": 2,
+            "balance": 500.00,
+            "equity": 500.00,
+            "openPnL": 0.00,
+            "positionsCount": 0,
             "serverTime": int(time.time())
         },
         "openPnLByInstrument": {
-            "NAS100": -7.77,
+            "NAS100": 0.00,
             "EURUSD": 0.00,
             "OTHER": 0.00
         },
         "metrics": {
-            "OVERALL": { "total": 21, "wins": 14, "losses": 7, "pnl": 29.44, "winRate": 66.7, "avgWin": 2.16, "avgLoss": 0.12, "profitFactor": 36.38, "lots": 2.45 },
-            "NAS100": { "total": 5, "wins": 5, "losses": 0, "pnl": 11.49, "winRate": 100.0, "avgWin": 2.30, "avgLoss": 0.00, "profitFactor": 11.49, "lots": 0.95 }
+            "OVERALL": { "total": 0, "wins": 0, "losses": 0, "pnl": 0.0, "winRate": 0.0, "avgWin": 0.0, "avgLoss": 0.0, "profitFactor": 0.0, "lots": 0.0 },
+            "NAS100": { "total": 0, "wins": 0, "losses": 0, "pnl": 0.0, "winRate": 0.0, "avgWin": 0.0, "avgLoss": 0.0, "profitFactor": 0.0, "lots": 0.0 }
         },
         "stochastics": get_default_stochastics(),
-        "openPositions": [
-            { "id": "72057594045543270", "instrumentName": "NAS100", "side": "SELL", "qty": 0.50, "avgPrice": 30061.15, "unrealizedPl": 0.36 }
-        ],
+        "openPositions": [],
         "closedTrades": []
     }
 

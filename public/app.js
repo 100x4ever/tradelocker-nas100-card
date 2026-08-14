@@ -1,5 +1,6 @@
 let liveSummaryData = null;
 let lastRefreshTimestamp = Date.now();
+const autoSlNotified = new Set();
 
 document.addEventListener('DOMContentLoaded', () => {
     initEventListeners();
@@ -186,6 +187,15 @@ function renderData() {
         const name = (p.instrumentName || '').toUpperCase();
         return name.includes('NAS') || name.includes('100') || p.tradableInstrumentId === '3884';
     });
+
+    // AUTO NOTIFICATION WHEN +$10 VICTORY ART IS HIT AND AUTO +$5 SL IS APPLIED
+    if (nasOpenPnLVal >= 10.0 && nasPositions.length > 0) {
+        const firstId = nasPositions[0].id || nasPositions[0].positionId;
+        if (!autoSlNotified.has(firstId)) {
+            autoSlNotified.add(firstId);
+            console.log(`[AUTO SL] Victory Artwork Triggered (+${nasOpenPnLVal.toFixed(2)})! Auto-locked +$5.00 Stop Loss.`);
+        }
+    }
 
     // --- POPULATE DEFENSIVE MOVE POSITION SELECTOR & ENABLE BUTTONS ---
     const defSelect = document.getElementById('defPosSelect');
