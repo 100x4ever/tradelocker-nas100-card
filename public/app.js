@@ -46,6 +46,11 @@ function initEventListeners() {
     const btnSl5 = document.getElementById('btnSl5');
     const btnSl10 = document.getElementById('btnSl10');
 
+    // Max Power Move: Set +$10, +$15, +$20 Take Profit
+    const btnTp10 = document.getElementById('btnTp10');
+    const btnTp15 = document.getElementById('btnTp15');
+    const btnTp20 = document.getElementById('btnTp20');
+
     if (defSelect) {
         defSelect.addEventListener('change', (e) => {
             const selectedId = e.target.value;
@@ -53,6 +58,9 @@ function initEventListeners() {
             if (btnSlBe) btnSlBe.disabled = !hasSelection;
             if (btnSl5) btnSl5.disabled = !hasSelection;
             if (btnSl10) btnSl10.disabled = !hasSelection;
+            if (btnTp10) btnTp10.disabled = !hasSelection;
+            if (btnTp15) btnTp15.disabled = !hasSelection;
+            if (btnTp20) btnTp20.disabled = !hasSelection;
         });
     }
 
@@ -95,9 +103,51 @@ function initEventListeners() {
         }
     };
 
+    const executeTakeProfit = async (amount) => {
+        const posId = defSelect ? defSelect.value : null;
+        if (!posId) {
+            alert("Please select an open position first!");
+            return;
+        }
+
+        const confirmed = confirm(`Unrealized Strike: Set Max Power +$${amount}.00 Take Profit on Position #${posId}?`);
+        if (!confirmed) return;
+
+        if (btnTp10) btnTp10.disabled = true;
+        if (btnTp15) btnTp15.disabled = true;
+        if (btnTp20) btnTp20.disabled = true;
+
+        try {
+            const res = await fetch('/api/set-takeprofit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ positionId: posId, amount: amount })
+            });
+            const data = await res.json();
+            if (data.status === 'ok') {
+                alert(data.message);
+                fetchPortfolioSummary();
+            } else {
+                alert("Failed: " + (data.message || "Could not set Take Profit"));
+            }
+        } catch (err) {
+            alert("Error setting Take Profit: " + err.message);
+        } finally {
+            if (defSelect && defSelect.value) {
+                if (btnTp10) btnTp10.disabled = false;
+                if (btnTp15) btnTp15.disabled = false;
+                if (btnTp20) btnTp20.disabled = false;
+            }
+        }
+    };
+
     if (btnSlBe) btnSlBe.addEventListener('click', () => executeStopLoss(0.0));
     if (btnSl5) btnSl5.addEventListener('click', () => executeStopLoss(5.0));
     if (btnSl10) btnSl10.addEventListener('click', () => executeStopLoss(10.0));
+
+    if (btnTp10) btnTp10.addEventListener('click', () => executeTakeProfit(10.0));
+    if (btnTp15) btnTp15.addEventListener('click', () => executeTakeProfit(15.0));
+    if (btnTp20) btnTp20.addEventListener('click', () => executeTakeProfit(20.0));
 }
 
 async function fetchPortfolioSummary() {
@@ -138,11 +188,15 @@ function renderData() {
     
     document.getElementById('cardNasOpenSub').innerText = `NAS100 Open PnL (${nasPositions.length} Active Positions)`;
 
-    // --- POPULATE DEFENSIVE MOVE POSITION SELECTOR ---
+    // --- POPULATE DEFENSIVE MOVE POSITION SELECTOR & ENABLE BUTTONS ---
     const defSelect = document.getElementById('defPosSelect');
     const btnSlBe = document.getElementById('btnSlBe');
     const btnSl5 = document.getElementById('btnSl5');
     const btnSl10 = document.getElementById('btnSl10');
+
+    const btnTp10 = document.getElementById('btnTp10');
+    const btnTp15 = document.getElementById('btnTp15');
+    const btnTp20 = document.getElementById('btnTp20');
 
     if (defSelect) {
         const currentSelected = defSelect.value;
@@ -151,6 +205,9 @@ function renderData() {
             if (btnSlBe) btnSlBe.disabled = true;
             if (btnSl5) btnSl5.disabled = true;
             if (btnSl10) btnSl10.disabled = true;
+            if (btnTp10) btnTp10.disabled = true;
+            if (btnTp15) btnTp15.disabled = true;
+            if (btnTp20) btnTp20.disabled = true;
         } else {
             defSelect.innerHTML = `<option value="">Select Position...</option>` + nasPositions.map(p => {
                 const pid = p.id || p.positionId;
@@ -158,8 +215,9 @@ function renderData() {
                 const qty = p.qty || 0.01;
                 const entry = parseFloat(p.avgPrice || 0).toFixed(2);
                 const slText = p.stopLoss ? ` [SL $${parseFloat(p.stopLoss).toFixed(2)}]` : '';
+                const tpText = p.takeProfit ? ` [TP $${parseFloat(p.takeProfit).toFixed(2)}]` : '';
                 return `<option value="${pid}" ${pid === currentSelected ? 'selected' : ''}>
-                    #${pid.slice(-6)} (${side} ${qty}L @ ${entry})${slText}
+                    #${pid.slice(-6)} (${side} ${qty}L @ ${entry})${slText}${tpText}
                 </option>`;
             }).join('');
 
@@ -168,12 +226,18 @@ function renderData() {
                 if (btnSlBe) btnSlBe.disabled = false;
                 if (btnSl5) btnSl5.disabled = false;
                 if (btnSl10) btnSl10.disabled = false;
+                if (btnTp10) btnTp10.disabled = false;
+                if (btnTp15) btnTp15.disabled = false;
+                if (btnTp20) btnTp20.disabled = false;
             } else if (nasPositions.length === 1) {
                 // Auto select if only 1 position exists
                 defSelect.value = nasPositions[0].id || nasPositions[0].positionId;
                 if (btnSlBe) btnSlBe.disabled = false;
                 if (btnSl5) btnSl5.disabled = false;
                 if (btnSl10) btnSl10.disabled = false;
+                if (btnTp10) btnTp10.disabled = false;
+                if (btnTp15) btnTp15.disabled = false;
+                if (btnTp20) btnTp20.disabled = false;
             }
         }
     }

@@ -364,6 +364,7 @@ def get_tradelocker_data(retry_on_401=True):
             entry_price = float(p_dict.get("avgPrice") or (pos[5] if len(pos)>5 else 0.0))
             unrealized = float(p_dict.get("unrealizedPl") or (pos[9] if len(pos)>9 else 0.0))
             stop_loss = p_dict.get("stopLossId") or p_dict.get("stopLoss")
+            take_profit = p_dict.get("takeProfitId") or p_dict.get("takeProfit")
 
             p_dict["id"] = p_id
             p_dict["instrumentName"] = inst_name
@@ -372,6 +373,7 @@ def get_tradelocker_data(retry_on_401=True):
             p_dict["avgPrice"] = entry_price
             p_dict["unrealizedPl"] = unrealized
             p_dict["stopLoss"] = stop_loss
+            p_dict["takeProfit"] = take_profit
 
             open_positions.append(p_dict)
 
@@ -447,7 +449,6 @@ def set_position_stoploss(position_id, loss_amount):
     if entry_p <= 0:
         return {"status": "error", "message": "Invalid entry price for position"}
 
-    # Break Even (0.0 loss amount)
     if loss_amt == 0.0 or str(loss_amount).lower() == "be":
         sl_price = round(entry_p, 2)
         label = "Break Even"
@@ -496,6 +497,72 @@ def set_position_stoploss(position_id, loss_amount):
     except Exception as e:
         print(f"Error setting stop loss on position {position_id}: {e}")
         return {"status": "error", "message": f"Failed to set Stop Loss: {e}"}
+
+def set_position_takeprofit(position_id, profit_amount):
+    """Calculate exact price level for Max Power TP (+$10, +$15, +$20) and execute PATCH /trade/positions/{positionId}."""
+    data = get_tradelocker_data()
+    positions = data.get("openPositions", [])
+    
+    target_pos = None
+    for p in positions:
+        if str(p.get("id")) == str(position_id) or str(p.get("positionId")) == str(position_id):
+            target_pos = p
+            break
+            
+    if not target_pos:
+        return {"status": "error", "message": f"Position #{position_id} not found in open positions"}
+
+    side = str(target_pos.get("side", "buy")).lower()
+    qty = float(target_pos.get("qty") or 0.01)
+    entry_p = float(target_pos.get("avgPrice") or 0.0)
+    profit_amt = float(profit_amount)
+
+    if entry_p <= 0 or qty <= 0:
+        return {"status": "error", "message": "Invalid entry price or quantity"}
+
+    if side == "buy":
+        tp_price = round(entry_p + (profit_amt / qty), 2)
+    else:
+        tp_price = round(entry_p - (profit_amt / qty), 2)
+
+    env = session_config["environment"]
+    base_url = f"https://{env}.tradelocker.com/backend-api"
+
+    headers = {
+        'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'application/json'
+    }
+
+    token = session_config["token"]
+    if not token:
+        token = get_jwt_token()
+
+    acc_num = session_config["acc_num"] or "17"
+
+    auth_headers = dict(headers)
+    auth_headers["Authorization"] = f"Bearer {token}"
+    auth_headers["accNum"] = str(acc_num)
+
+    patch_body = json.dumps({"takeProfit": tp_price}).encode('utf-8')
+    url = f"{base_url}/trade/positions/{position_id}"
+
+    try:
+        req = urllib.request.Request(url, data=patch_body, headers=auth_headers, method="PATCH")
+        with urllib.request.urlopen(req, context=ctx) as resp:
+            print(f"Set TakeProfit=${tp_price} (+${profit_amt:.2f}) on Position #{position_id} successfully!")
+            live_cache["data"] = None
+            live_cache["last_fetch"] = 0
+            return {
+                "status": "ok",
+                "positionId": position_id,
+                "takeProfit": tp_price,
+                "profitAmount": profit_amt,
+                "message": f"Set Max Power +${profit_amt:.2f} Take Profit at ${tp_price} on Position #{position_id}!"
+            }
+    except Exception as e:
+        print(f"Error setting take profit on position {position_id}: {e}")
+        return {"status": "error", "message": f"Failed to set Take Profit: {e}"}
 
 def close_nas100_positions():
     """Execute TradeLocker REST API call to market close all NAS100 positions."""
@@ -628,7 +695,16 @@ class TradeLockerHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         body_bytes = self.rfile.read(content_len) if content_len > 0 else b'{}'
         payload = json.loads(body_bytes.decode('utf-8')) if body_bytes else {}
 
-        if self.path == '/api/set-stoploss':
+        if self.path == '/api/set-takeprofit':
+            pos_id = payload.get("positionId")
+            amount = payload.get("amount", 10.0)
+            res = set_position_takeprofit(pos_id, amount)
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode('utf-8'))
+
+        elif self.path == '/api/set-stoploss':
             pos_id = payload.get("positionId")
             amount = payload.get("amount", 0.0)
             res = set_position_stoploss(pos_id, amount)

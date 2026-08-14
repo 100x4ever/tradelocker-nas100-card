@@ -42,8 +42,8 @@
 
                 <!-- Card Moves Box -->
                 <div class="card-moves-box">
-                    <!-- Move 1: NAS100 Open PnL -->
-                    <div class="move-row">
+                    <!-- Move 1: NAS100 Open PnL & Max Power TP Slot -->
+                    <div class="move-row unrealized-move-row">
                         <div class="move-cost">
                             <span class="energy-icon electric">⚡</span>
                         </div>
@@ -51,6 +51,14 @@
                             <div class="move-header">
                                 <span class="move-name">Unrealized Strike</span>
                                 <span class="move-pnl negative" id="cardNasOpenPnL">-$8.42</span>
+                            </div>
+                            <div class="max-power-container">
+                                <div class="max-power-label">⚡ MAX POWER TP:</div>
+                                <div class="tp-btn-row">
+                                    <button class="tp-btn tp-10" id="btnTp10" disabled>+$10 TP</button>
+                                    <button class="tp-btn tp-15" id="btnTp15" disabled>+$15 TP</button>
+                                    <button class="tp-btn tp-20" id="btnTp20" disabled>+$20 TP</button>
+                                </div>
                             </div>
                             <div class="move-desc" id="cardNasOpenSub">NAS100 Open PnL (2 Active Positions)</div>
                         </div>
@@ -69,7 +77,7 @@
                                 </select>
                             </div>
                             <div class="def-btn-row">
-                                <button class="def-btn sl-be" id="btnSlBe" disabled>🛡️ BREAK EVEN</button>
+                                <button class="def-btn sl-be" id="btnSlBe" disabled>🛡️ BE</button>
                                 <button class="def-btn sl-5" id="btnSl5" disabled>-$5 SL</button>
                                 <button class="def-btn sl-10" id="btnSl10" disabled>-$10 SL</button>
                             </div>
