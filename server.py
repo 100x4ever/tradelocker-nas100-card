@@ -7,6 +7,7 @@ import ssl
 import os
 import mimetypes
 import time
+import threading
 
 PORT = int(os.environ.get("PORT", 8000))
 PUBLIC_DIR = os.path.join(os.path.dirname(__file__), 'public')
@@ -300,14 +301,35 @@ def get_default_stochastics():
     }
 
 def check_and_apply_auto_stoploss(open_positions, nas_open_pnl):
-    """Automatically set Stop Loss to +$5.00 whenever PnL reaches +$10.00 (Victory Artwork)!"""
+    """Automatically set Stop Loss to +$5.00 in background whenever PnL reaches +$10.00!"""
+    # 1. Total NAS100 PnL check
     if nas_open_pnl >= 10.0:
         for pos in open_positions:
             p_id = str(pos.get("id") or pos.get("positionId"))
             if p_id and p_id not in auto_sl_triggered:
-                print(f"[{time.strftime('%H:%M:%S')}] [AUTO SL] PnL reached +${nas_open_pnl:.2f} (Victory Artwork)! Auto-triggering +$5.00 Stop Loss on position #{p_id}")
+                print(f"[{time.strftime('%H:%M:%S')}] [AUTO SL] Total PnL reached +${nas_open_pnl:.2f}! Auto-locking +$5.00 Stop Loss on position #{p_id}")
                 auto_sl_triggered.add(p_id)
                 set_position_stoploss(p_id, 5.0)
+
+    # 2. Individual position PnL check
+    for pos in open_positions:
+        p_id = str(pos.get("id") or pos.get("positionId"))
+        p_unrealized = float(pos.get("unrealizedPl") or 0.0)
+        if p_unrealized >= 10.0 and p_id and p_id not in auto_sl_triggered:
+            print(f"[{time.strftime('%H:%M:%S')}] [AUTO SL] Position #{p_id} PnL reached +${p_unrealized:.2f}! Auto-locking +$5.00 Stop Loss!")
+            auto_sl_triggered.add(p_id)
+            set_position_stoploss(p_id, 5.0)
+
+def background_auto_sl_monitor_thread():
+    """Background daemon thread running 24/7 on Railway server to auto-lock +$5 SL even if app/browser is closed."""
+    print(f"[{time.strftime('%H:%M:%S')}] Background 24/7 Auto +$5 Stop Loss Monitor Loop Started!")
+    while True:
+        try:
+            time.sleep(4.0)
+            if session_config["live_mode"]:
+                get_tradelocker_data(retry_on_401=True)
+        except Exception as e:
+            print("Background monitor error:", e)
 
 def get_tradelocker_data(retry_on_401=True):
     """Fetch live real-time account state, positions & Stochastics on EVERY request."""
@@ -376,8 +398,8 @@ def get_tradelocker_data(retry_on_401=True):
             qty = float(p_dict.get("qty") or (pos[4] if len(pos)>4 else 0.01))
             entry_price = float(p_dict.get("avgPrice") or (pos[5] if len(pos)>5 else 0.0))
             unrealized = float(p_dict.get("unrealizedPl") or (pos[9] if len(pos)>9 else 0.0))
-            stop_loss = p_dict.get("stopLossId") or p_dict.get("stopLoss")
-            take_profit = p_dict.get("takeProfitId") or p_dict.get("takeProfit")
+            stop_loss = p_dict.get("stopLossId") or p_dict.get("stopLoss") or (pos[7] if len(pos)>7 else None)
+            take_profit = p_dict.get("takeProfitId") or p_dict.get("takeProfit") or (pos[8] if len(pos)>8 else None)
             trailing_offset = p_dict.get("trailingOffset")
 
             p_dict["id"] = p_id
@@ -399,7 +421,7 @@ def get_tradelocker_data(retry_on_401=True):
             else:
                 open_pnl_by_inst["OTHER"] += unrealized
 
-        # AUTOMATIC +$5 STOP LOSS TRIGGER WHEN PNL REACHES +$10 (VICTORY ARTWORK)
+        # AUTOMATIC 24/7 +$5 STOP LOSS TRIGGER WHEN PNL REACHES +$10 (BACKGROUND MONITORED)
         check_and_apply_auto_stoploss(open_positions, open_pnl_by_inst["NAS100"])
 
         metrics = meta_cache.get("metrics") or {
@@ -868,6 +890,10 @@ class TradeLockerHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"status": "ok", "account": data["account"]}).encode('utf-8'))
             else:
                 self.wfile.write(json.dumps({"status": "error", "message": "Failed to connect to TradeLocker"}).encode('utf-8'))
+
+# Launch 24/7 background daemon monitor thread for auto +$5 SL trigger
+bg_thread = threading.Thread(target=background_auto_sl_monitor_thread, daemon=True)
+bg_thread.start()
 
 if __name__ == '__main__':
     with socketserver.TCPServer(("", PORT), TradeLockerHTTPRequestHandler) as httpd:

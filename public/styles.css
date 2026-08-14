@@ -315,6 +315,18 @@ body {
     border-color: #475569;
 }
 
+/* SHINY GLOWING BORDER FOR ACTIVE TAKE PROFIT BUTTONS */
+.tp-btn.active-tp-glow {
+    border: 2px solid #a7f3d0 !important;
+    box-shadow: 0 0 12px #34d399, inset 0 0 8px rgba(52, 211, 153, 0.8) !important;
+    animation: shinyGlowTp 1.5s infinite alternate !important;
+}
+
+@keyframes shinyGlowTp {
+    0% { box-shadow: 0 0 6px #34d399, inset 0 0 4px rgba(52, 211, 153, 0.4); }
+    100% { box-shadow: 0 0 16px #10b981, inset 0 0 10px rgba(16, 185, 129, 0.9); }
+}
+
 /* DEFENSIVE SHIELD STOP LOSS & STALK BUTTON STYLING */
 .def-header {
     margin-bottom: 3px;
@@ -357,16 +369,16 @@ body {
     border-color: #fbbf24;
 }
 
-.def-btn.sl-stalk.active {
-    background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
-    border-color: #fef08a;
-    box-shadow: 0 0 10px rgba(245, 158, 11, 0.8);
-    animation: flashPulseStalk 1.2s infinite alternate;
+/* SHINY GLOWING BORDER FOR ACTIVE STOP LOSS BUTTONS */
+.def-btn.active-sl-glow {
+    border: 2px solid #93c5fd !important;
+    box-shadow: 0 0 12px #3b82f6, inset 0 0 8px rgba(59, 130, 246, 0.8) !important;
+    animation: shinyGlowSl 1.5s infinite alternate !important;
 }
 
-@keyframes flashPulseStalk {
-    0% { box-shadow: 0 0 4px rgba(245, 158, 11, 0.4); }
-    100% { box-shadow: 0 0 12px rgba(251, 191, 36, 0.9); }
+@keyframes shinyGlowSl {
+    0% { box-shadow: 0 0 6px #3b82f6, inset 0 0 4px rgba(59, 130, 246, 0.4); }
+    100% { box-shadow: 0 0 16px #60a5fa, inset 0 0 10px rgba(96, 165, 250, 0.9); }
 }
 
 .def-btn.sl-be:hover:not(:disabled),

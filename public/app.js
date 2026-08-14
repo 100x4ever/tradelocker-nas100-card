@@ -70,7 +70,7 @@ function initEventListeners() {
 
                 if (data.status === 'ok') {
                     isStalkingActive = nextState;
-                    btnStalk.classList.toggle('active', isStalkingActive);
+                    btnStalk.classList.toggle('active-sl-glow', isStalkingActive);
                     btnStalk.innerText = isStalkingActive ? "🐾 STALKING" : "🐾 STALK";
                     alert(data.message || "STALK Trailing Stop mode activated!");
                     fetchPortfolioSummary();
@@ -198,15 +198,6 @@ function renderData() {
         return name.includes('NAS') || name.includes('100') || p.tradableInstrumentId === '3884';
     });
 
-    // AUTO NOTIFICATION WHEN +$10 VICTORY ART IS HIT AND AUTO +$5 SL IS APPLIED
-    if (nasOpenPnLVal >= 10.0 && nasPositions.length > 0) {
-        const firstId = nasPositions[0].id || nasPositions[0].positionId;
-        if (!autoSlNotified.has(firstId)) {
-            autoSlNotified.add(firstId);
-            console.log(`[AUTO SL] Victory Artwork Triggered (+${nasOpenPnLVal.toFixed(2)})! Auto-locked +$5.00 Stop Loss.`);
-        }
-    }
-
     // --- ENABLE / DISABLE BUTTONS BASED ON OPEN POSITIONS ---
     const btnCloseNow = document.getElementById('btnCloseNow');
     const btnSlBe = document.getElementById('btnSlBe');
@@ -226,21 +217,50 @@ function renderData() {
     if (btnSlP5) btnSlP5.disabled = !hasOpenPositions;
     if (btnSl5) btnSl5.disabled = !hasOpenPositions;
     if (btnSl10) btnSl10.disabled = !hasOpenPositions;
-    if (btnStalk) {
-        btnStalk.disabled = !hasOpenPositions;
-        const hasTrailing = nasPositions.some(p => Boolean(p.trailingOffset));
-        if (hasTrailing) {
-            isStalkingActive = true;
-            btnStalk.classList.add('active');
-            btnStalk.innerText = "🐾 STALKING";
-        }
-    }
 
     if (btnTp10) btnTp10.disabled = !hasOpenPositions;
     if (btnTp15) btnTp15.disabled = !hasOpenPositions;
     if (btnTp20) btnTp20.disabled = !hasOpenPositions;
 
-    // --- 3. DYNAMIC POKEMON MOOD ARTWORK SWITCHING (BULL VS BEAR BASED ON POSITION SIDE) ---
+    // --- SHINY GLOWING BORDER HIGHLIGHTING FOR ACTIVE TP AND SL BUTTONS ---
+    // Reset all glow classes
+    [btnTp10, btnTp15, btnTp20].forEach(b => b && b.classList.remove('active-tp-glow'));
+    [btnSlBe, btnSlP5, btnSl5, btnSl10, btnStalk].forEach(b => b && b.classList.remove('active-sl-glow'));
+
+    if (hasOpenPositions) {
+        nasPositions.forEach(p => {
+            const side = (p.side || 'buy').toLowerCase();
+            const qty = parseFloat(p.qty || 0.01);
+            const entry = parseFloat(p.avgPrice || 0);
+            const sl = p.stopLoss ? parseFloat(p.stopLoss) : null;
+            const tp = p.takeProfit ? parseFloat(p.takeProfit) : null;
+
+            // Check Take Profits
+            if (tp && entry > 0 && qty > 0) {
+                const diff = side === 'buy' ? (tp - entry) * qty : (entry - tp) * qty;
+                if (Math.abs(diff - 10.0) < 1.5 && btnTp10) btnTp10.classList.add('active-tp-glow');
+                if (Math.abs(diff - 15.0) < 1.5 && btnTp15) btnTp15.classList.add('active-tp-glow');
+                if (Math.abs(diff - 20.0) < 1.5 && btnTp20) btnTp20.classList.add('active-tp-glow');
+            }
+
+            // Check Stop Losses
+            if (sl && entry > 0 && qty > 0) {
+                const diff = side === 'buy' ? (sl - entry) * qty : (entry - sl) * qty;
+                if (Math.abs(diff - 0.0) < 0.5 && btnSlBe) btnSlBe.classList.add('active-sl-glow');
+                if (Math.abs(diff - 5.0) < 1.2 && btnSlP5) btnSlP5.classList.add('active-sl-glow');
+                if (Math.abs(diff - (-5.0)) < 1.2 && btnSl5) btnSl5.classList.add('active-sl-glow');
+                if (Math.abs(diff - (-10.0)) < 1.2 && btnSl10) btnSl10.classList.add('active-sl-glow');
+            }
+
+            // Check Trailing Stop (STALK)
+            if (p.trailingOffset && btnStalk) {
+                btnStalk.classList.add('active-sl-glow');
+                btnStalk.innerText = "🐾 STALKING";
+            }
+        });
+    }
+
+    // --- 3. DYNAMIC POKEMON MOOD ARTWORK SWITCHING (+15 & +20 TIERS INCLUDED) ---
     const artImg = document.getElementById('cardArtImg');
     if (artImg) {
         let isShort = false;
@@ -263,7 +283,11 @@ function renderData() {
         const prefix = isShort ? 'bear_' : 'art_';
 
         let selectedArt = `${prefix}neutral.jpg`;
-        if (nasOpenPnLVal >= 10.0) {
+        if (nasOpenPnLVal >= 20.0) {
+            selectedArt = `${prefix}green_20.jpg`;
+        } else if (nasOpenPnLVal >= 15.0) {
+            selectedArt = `${prefix}green_15.jpg`;
+        } else if (nasOpenPnLVal >= 10.0) {
             selectedArt = `${prefix}green_double.jpg`;
         } else if (nasOpenPnLVal > 2.0) {
             selectedArt = `${prefix}green_single.jpg`;
