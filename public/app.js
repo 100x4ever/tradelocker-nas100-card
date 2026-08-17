@@ -215,7 +215,7 @@ function renderCandleSightModal(bars) {
         ctx.fillText(label, xCenter, height - 6);
     });
 
-    // Populate Readout Cards
+    // Populate Readout Cards (Hiding OCHL, showing clean +/- point/dollar move per candle)
     cardsGrid.innerHTML = '';
     const labels = ["2 BARS AGO", "PREVIOUS", "CURRENT LIVE"];
 
@@ -230,13 +230,7 @@ function renderCandleSightModal(bars) {
         cardEl.className = `c-card ${isBullish ? 'bullish' : 'bearish'}`;
         cardEl.innerHTML = `
             <div class="time-lbl">${timeStr} • ${labels[idx]}</div>
-            <div class="badge-val ${isBullish ? 'green' : 'red'}">${diffSign}${diff.toFixed(1)} P</div>
-            <div class="price-row">
-                O: ${b.o.toFixed(1)}<br>
-                H: ${b.h.toFixed(1)}<br>
-                L: ${b.l.toFixed(1)}<br>
-                C: ${b.c.toFixed(1)}
-            </div>
+            <div class="badge-val ${isBullish ? 'green' : 'red'}">${diffSign}${diff.toFixed(1)} PTS</div>
         `;
         cardsGrid.appendChild(cardEl);
     });
