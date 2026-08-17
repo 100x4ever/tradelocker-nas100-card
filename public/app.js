@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initEventListeners() {
-    // PASSIVE ABILITY TOGGLE BUTTON (0.33 Lots Auto-Entry Bot, Max 1 Open Trade)
+    // CANDLE MAGIC TOGGLE BUTTON (5m Auto-Entry Bot, 0.33 Lots, Max 1 Open Trade)
     const btnPassiveToggle = document.getElementById('btnPassiveToggle');
     if (btnPassiveToggle) {
         btnPassiveToggle.addEventListener('click', async () => {
@@ -22,25 +22,25 @@ function initEventListeners() {
                 });
                 const data = await res.json();
                 if (data.status === 'ok') {
-                    renderPassiveAbilityState(data.active, data.lotSize);
+                    renderPassiveAbilityState(data.active);
                 }
             } catch (err) {
-                console.error("Failed to toggle passive ability:", err);
+                console.error("Failed to toggle Candle Magic:", err);
             } finally {
                 btnPassiveToggle.disabled = false;
             }
         });
     }
 
-    // NOW Button: Instant Market Close ALL open positions
+    // BANISH Button: Instant Market Close ALL open positions
     const btnCloseNow = document.getElementById('btnCloseNow');
     if (btnCloseNow) {
         btnCloseNow.addEventListener('click', async () => {
-            const confirmed = confirm("Unrealized Strike NOW: Market Close ALL active open positions immediately?");
+            const confirmed = confirm("Arcane Strike BANISH: Market Close ALL active open positions immediately?");
             if (!confirmed) return;
 
             btnCloseNow.disabled = true;
-            btnCloseNow.innerText = "CLOSING...";
+            btnCloseNow.innerText = "BANISHING...";
 
             try {
                 const res = await fetch('/api/close-all-nas100', {
@@ -49,13 +49,13 @@ function initEventListeners() {
                 });
                 const data = await res.json();
 
-                alert(data.message || "All positions market closed NOW!");
+                alert(data.message || "All positions market closed & banished!");
                 fetchPortfolioSummary();
             } catch (err) {
-                alert("Market close error: " + err.message);
+                alert("Banish error: " + err.message);
             } finally {
                 btnCloseNow.disabled = false;
-                btnCloseNow.innerText = "⚡ NOW";
+                btnCloseNow.innerText = "⚡ BANISH";
             }
         });
     }
@@ -66,7 +66,7 @@ function initEventListeners() {
     const btnTp20 = document.getElementById('btnTp20');
 
     const executeTakeProfit = async (amount) => {
-        const confirmed = confirm(`Unrealized Strike: Set +$${amount}.00 Take Profit on ALL active open positions?`);
+        const confirmed = confirm(`Arcane Strike: Set +$${amount}.00 Take Profit on ALL active open positions?`);
         if (!confirmed) return;
 
         if (btnTp10) btnTp10.disabled = true;
@@ -100,17 +100,17 @@ function initEventListeners() {
     if (btnTp20) btnTp20.addEventListener('click', () => executeTakeProfit(20.0));
 }
 
-function renderPassiveAbilityState(isActive, lotSize) {
+function renderPassiveAbilityState(isActive) {
     const btnPassiveToggle = document.getElementById('btnPassiveToggle');
     const passiveToggleTxt = document.getElementById('passiveToggleTxt');
 
     if (btnPassiveToggle && passiveToggleTxt) {
         if (isActive) {
             btnPassiveToggle.className = "passive-toggle-btn on";
-            passiveToggleTxt.innerText = `PASSIVE: ACTIVE (${lotSize || 0.33} L)`;
+            passiveToggleTxt.innerText = "🕯️ READ CANDLES";
         } else {
             btnPassiveToggle.className = "passive-toggle-btn off";
-            passiveToggleTxt.innerText = "PASSIVE: OFF";
+            passiveToggleTxt.innerText = "🕯️ BLOWOUT";
         }
     }
 }
@@ -137,9 +137,9 @@ function renderData() {
     const nasMetric = metrics['NAS100'] || { pnl: 0, total: 0, wins: 0, losses: 0, winRate: 0, profitFactor: 0, lots: 0 };
     const overallMetric = metrics['OVERALL'] || { pnl: 0, total: 0, wins: 0, losses: 0, winRate: 0, profitFactor: 0 };
 
-    // 0. Passive Ability Button State
+    // 0. Candle Magic Button State
     if (passiveAbility) {
-        renderPassiveAbilityState(passiveAbility.active, passiveAbility.lotSize);
+        renderPassiveAbilityState(passiveAbility.active);
     }
 
     // 1. HP / Account Equity
@@ -158,7 +158,7 @@ function renderData() {
 
     const hasOpenPositions = nasPositions.length > 0;
 
-    // --- ENABLE / DISABLE TAKE PROFIT & NOW BUTTONS ---
+    // --- ENABLE / DISABLE TAKE PROFIT & BANISH BUTTONS ---
     const btnCloseNow = document.getElementById('btnCloseNow');
     const btnTp10 = document.getElementById('btnTp10');
     const btnTp15 = document.getElementById('btnTp15');
@@ -188,7 +188,7 @@ function renderData() {
         });
     }
 
-    // --- DEFENSIVE SHIELD: SHOW ONLY THE 'SHIELD POWER' READOUT (ACTIVE STOPLOSS AMOUNT) ---
+    // --- AEGIS SHIELD: SHOW ONLY THE ACTIVE STOPLOSS AMOUNT READOUT ---
     const shieldPowerEl = document.getElementById('cardShieldPower');
     if (shieldPowerEl) {
         if (!hasOpenPositions) {
@@ -299,15 +299,15 @@ function renderData() {
         }
     }
 
-    // 5. Move 5: NAS100 Cumulative Realized PnL
+    // 5. Move 5: NAS100 Cumulative Realized PnL (War Spoils)
     const nasTotalPnLEl = document.getElementById('cardTotalPnL');
     nasTotalPnLEl.innerText = `${nasMetric.pnl >= 0 ? '+' : ''}$${nasMetric.pnl.toFixed(2)}`;
     nasTotalPnLEl.className = `move-pnl ${nasMetric.pnl > 0 ? 'positive' : nasMetric.pnl < 0 ? 'negative' : 'neutral'}`;
 
-    // 6. Move 6: NAS100 Win Rate & Record
+    // 6. Move 6: NAS100 Win Rate (Valor Accuracy)
     document.getElementById('cardWinRate').innerText = `${nasMetric.winRate.toFixed(1)}%`;
 
-    // 7. Stat Pills: Balance, Profit Factor, Retreat Fee (-$1 / LOT)
+    // 7. Stat Pills: Gold Balance, War Factor, Retreat Toll (-$1 / LOT)
     document.getElementById('cardBalance').innerText = `$${account.balance.toFixed(2)}`;
     document.getElementById('cardProfitFactor').innerText = nasMetric.profitFactor ? nasMetric.profitFactor.toFixed(2) : (overallMetric.profitFactor ? overallMetric.profitFactor.toFixed(2) : '11.49');
 

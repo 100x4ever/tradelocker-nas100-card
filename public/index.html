@@ -39,16 +39,16 @@
                     <div class="card-art-overlay"></div>
                 </div>
 
-                <!-- Card Moves Box -->
+                <!-- Card Moves Box (Magic & War Fantasy Themed) -->
                 <div class="card-moves-box">
-                    <!-- Move 1: NAS100 Open PnL, TP Buttons & NOW Market Close Button -->
+                    <!-- Move 1: Arcane Strike (Unrealized PnL, TP & Banish Close Button) -->
                     <div class="move-row unrealized-move-row">
                         <div class="move-cost">
                             <span class="energy-icon electric">⚡</span>
                         </div>
                         <div class="move-info">
                             <div class="move-header">
-                                <span class="move-name">Unrealized Strike</span>
+                                <span class="move-name">Arcane Strike</span>
                                 <span class="move-pnl negative" id="cardNasOpenPnL">-$8.42</span>
                             </div>
                             <div class="max-power-container">
@@ -56,49 +56,49 @@
                                     <button class="tp-btn tp-10" id="btnTp10" disabled>+$10</button>
                                     <button class="tp-btn tp-15" id="btnTp15" disabled>+$15</button>
                                     <button class="tp-btn tp-20" id="btnTp20" disabled>+$20</button>
-                                    <button class="tp-btn btn-now" id="btnCloseNow" disabled>⚡ NOW</button>
+                                    <button class="tp-btn btn-now" id="btnCloseNow" disabled>⚡ BANISH</button>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Move 2: Defensive Shield (Displays ONLY Active Shield Power / Stop Loss) -->
+                    <!-- Move 2: Aegis Shield (Active Stop Loss Shield Power) -->
                     <div class="move-row def-move-row">
                         <div class="move-cost">
                             <span class="energy-icon shield">🛡️</span>
                         </div>
                         <div class="move-info">
                             <div class="move-header def-header">
-                                <span class="move-name">Defensive Shield</span>
+                                <span class="move-name">Aegis Shield</span>
                                 <span class="shield-power-val neutral" id="cardShieldPower">-$10</span>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Move 3: Passive Ability (Toggleable 0.33 Lots Auto-Entry Bot) -->
+                    <!-- Move 3: Candle Magic (Passive Auto-Entry Engine with Read / Blowout Toggle) -->
                     <div class="move-row passive-move-row">
                         <div class="move-cost">
-                            <span class="energy-icon passive">⚡</span>
+                            <span class="energy-icon passive">🕯️</span>
                         </div>
                         <div class="move-info">
                             <div class="move-header passive-header">
-                                <span class="move-name">Passive Ability (0.33 L)</span>
+                                <span class="move-name">Candle Magic</span>
                                 <button class="passive-toggle-btn off" id="btnPassiveToggle">
                                     <span class="passive-status-dot"></span>
-                                    <span id="passiveToggleTxt">PASSIVE: OFF</span>
+                                    <span id="passiveToggleTxt">🕯️ BLOWOUT</span>
                                 </button>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Move 4: NAS100 5m Stochastic Oracle (Fast & Heavy) -->
+                    <!-- Move 4: Oracle Sight (5m Stochastic Fast & Heavy) -->
                     <div class="move-row stoch-move-row">
                         <div class="move-cost">
                             <span class="energy-icon eye">👁️</span>
                         </div>
                         <div class="move-info">
                             <div class="move-header stoch-header">
-                                <span class="move-name">Stochastic</span>
+                                <span class="move-name">Oracle Sight</span>
                                 <div class="stoch-readouts">
                                     <span class="stoch-tag">Fast: <strong id="stoch7Val">35.0</strong> <span id="stoch7Badge" class="stoch-badge neutral">NEUTRAL</span></span>
                                     <span class="stoch-tag">Heavy: <strong id="stoch40Val">44.6</strong> <span id="stoch40Badge" class="stoch-badge neutral">NEUTRAL</span></span>
@@ -107,41 +107,41 @@
                         </div>
                     </div>
 
-                    <!-- Move 5: NAS100 Realized PnL -->
+                    <!-- Move 5: War Spoils (Cumulative Realized PnL) -->
                     <div class="move-row">
                         <div class="move-cost">
                             <span class="energy-icon fire">🔥</span>
                         </div>
                         <div class="move-info">
                             <div class="move-header">
-                                <span class="move-name">Cumulative Loot</span>
+                                <span class="move-name">War Spoils</span>
                                 <span class="move-pnl positive" id="cardTotalPnL">+$11.49</span>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Move 6: NAS100 Win Rate -->
+                    <!-- Move 6: Valor Accuracy (Win Rate) -->
                     <div class="move-row">
                         <div class="move-cost">
                             <span class="energy-icon star">⭐</span>
                         </div>
                         <div class="move-info">
                             <div class="move-header">
-                                <span class="move-name">Accuracy Rate</span>
+                                <span class="move-name">Valor Accuracy</span>
                                 <span class="move-pnl highlight" id="cardWinRate">100.0%</span>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Move 7: Dimension Portal (Open TradeLocker App) -->
+                    <!-- Move 7: Realm Portal (Open TradeLocker App) -->
                     <div class="move-row portal-move-row">
                         <div class="move-cost">
                             <span class="energy-icon portal">🚀</span>
                         </div>
                         <div class="move-info">
                             <a href="https://live.tradelocker.com" target="_blank" rel="noopener" class="portal-link-btn">
-                                <span class="move-name">Dimension Portal</span>
-                                <span class="portal-badge">OPEN TRADELOCKER ↗</span>
+                                <span class="move-name">Realm Portal</span>
+                                <span class="portal-badge">ENTER REALM ↗</span>
                             </a>
                         </div>
                     </div>
@@ -150,15 +150,15 @@
                 <!-- Card Stats Bar -->
                 <div class="card-weakness-bar">
                     <div class="stat-pill">
-                        <span class="lbl">BALANCE</span>
+                        <span class="lbl">GOLD BALANCE</span>
                         <span class="val" id="cardBalance">$987.64</span>
                     </div>
                     <div class="stat-pill">
-                        <span class="lbl">PROFIT FACTOR</span>
+                        <span class="lbl">WAR FACTOR</span>
                         <span class="val" id="cardProfitFactor">11.49</span>
                     </div>
                     <div class="stat-pill">
-                        <span class="lbl">RETREAT COST</span>
+                        <span class="lbl">RETREAT TOLL</span>
                         <span class="val" id="cardFee">-$1.00 / LOT</span>
                     </div>
                 </div>
