@@ -10,28 +10,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initEventListeners() {
-    // CANDLE MAGIC TOGGLE BUTTON (5m Auto-Entry Bot, 0.33 Lots, Max 1 Open Trade)
-    const btnPassiveToggle = document.getElementById('btnPassiveToggle');
-    if (btnPassiveToggle) {
-        btnPassiveToggle.addEventListener('click', async () => {
-            btnPassiveToggle.disabled = true;
-            try {
-                const res = await fetch('/api/toggle-passive-ability', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                const data = await res.json();
-                if (data.status === 'ok') {
-                    renderPassiveAbilityState(data.active);
-                }
-            } catch (err) {
-                console.error("Failed to toggle Candle Magic:", err);
-            } finally {
-                btnPassiveToggle.disabled = false;
-            }
-        });
-    }
-
     // BANISH Button: Instant Market Close ALL open positions
     const btnCloseNow = document.getElementById('btnCloseNow');
     if (btnCloseNow) {
@@ -100,21 +78,6 @@ function initEventListeners() {
     if (btnTp20) btnTp20.addEventListener('click', () => executeTakeProfit(20.0));
 }
 
-function renderPassiveAbilityState(isActive) {
-    const btnPassiveToggle = document.getElementById('btnPassiveToggle');
-    const passiveToggleTxt = document.getElementById('passiveToggleTxt');
-
-    if (btnPassiveToggle && passiveToggleTxt) {
-        if (isActive) {
-            btnPassiveToggle.className = "passive-toggle-btn on";
-            passiveToggleTxt.innerText = "🕯️ READ CANDLES";
-        } else {
-            btnPassiveToggle.className = "passive-toggle-btn off";
-            passiveToggleTxt.innerText = "🕯️ BLOWOUT";
-        }
-    }
-}
-
 async function fetchPortfolioSummary() {
     try {
         const res = await fetch(`/api/summary?t=${Date.now()}`, {
@@ -132,15 +95,10 @@ async function fetchPortfolioSummary() {
 function renderData() {
     if (!liveSummaryData) return;
 
-    const { account, openPnLByInstrument, metrics, stochastics, openPositions, passiveAbility } = liveSummaryData;
+    const { account, openPnLByInstrument, metrics, stochastics, openPositions } = liveSummaryData;
 
     const nasMetric = metrics['NAS100'] || { pnl: 0, total: 0, wins: 0, losses: 0, winRate: 0, profitFactor: 0, lots: 0 };
     const overallMetric = metrics['OVERALL'] || { pnl: 0, total: 0, wins: 0, losses: 0, winRate: 0, profitFactor: 0 };
-
-    // 0. Candle Magic Button State
-    if (passiveAbility) {
-        renderPassiveAbilityState(passiveAbility.active);
-    }
 
     // 1. HP / Account Equity
     document.getElementById('cardEquityHp').innerText = `$${account.equity.toFixed(2)}`;
