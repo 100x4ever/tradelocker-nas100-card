@@ -513,8 +513,11 @@ def get_tradelocker_data(retry_on_401=True):
         except Exception as e:
             print("Orders mapping exception:", e)
 
-        # 4. Real-Time Stochastics Calculation
+        # 4. Real-Time Stochastics Calculation & 5m Bars
         stochastics = fetch_live_stochastics(auth_headers, base_url)
+        latest_5m_bars = []
+        if bars_cache.get("bars") and len(bars_cache["bars"]) >= 3:
+            latest_5m_bars = bars_cache["bars"][-3:]
 
         # Map Account State
         acc_cols = [c["id"] for c in config.get("accountDetailsConfig", {}).get("columns", [])]
@@ -586,6 +589,7 @@ def get_tradelocker_data(retry_on_401=True):
                 "positionsCount": len(open_positions),
                 "serverTime": int(time.time())
             },
+            "latest5mBars": latest_5m_bars,
             "openPnLByInstrument": open_pnl_by_inst,
             "metrics": metrics,
             "stochastics": stochastics,
@@ -866,6 +870,7 @@ def get_mock_summary_data():
             "positionsCount": 0,
             "serverTime": int(time.time())
         },
+        "latest5mBars": [],
         "openPnLByInstrument": {
             "NAS100": 0.00,
             "EURUSD": 0.00,

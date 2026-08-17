@@ -359,6 +359,189 @@ body {
     border: 1px solid #475569;
 }
 
+/* CANDLE SIGHT BUTTON STYLING */
+.candle-sight-header {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.candle-sight-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+    border: 1.5px solid #a78bfa;
+    border-radius: 16px;
+    color: #ffffff;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 800;
+    padding: 3px 9px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 0 10px rgba(167, 139, 250, 0.4);
+}
+
+.candle-sight-btn:hover {
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 0 16px rgba(167, 139, 250, 0.7);
+}
+
+/* CANDLE SIGHT POP-UP MODAL OVERLAY STYLING */
+.candle-modal-backdrop {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(6, 9, 17, 0.85);
+    backdrop-filter: blur(8px);
+    z-index: 9999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 14px;
+    animation: modalFadeIn 0.25s ease-out;
+}
+
+@keyframes modalFadeIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+.candle-modal-card {
+    background: linear-gradient(145deg, #1e1b4b 0%, #0f172a 100%);
+    border: 3.5px solid #a78bfa;
+    border-radius: 20px;
+    padding: 16px;
+    width: 100%;
+    max-width: 380px;
+    box-shadow: 
+        0 0 0 2px #4c1d95,
+        0 20px 50px rgba(0, 0, 0, 0.9),
+        0 0 30px rgba(167, 139, 250, 0.4);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.candle-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1.5px solid #4c1d95;
+    padding-bottom: 8px;
+}
+
+.candle-modal-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.candle-modal-title h3 {
+    font-family: var(--font-card-title);
+    font-size: 15px;
+    color: #f3e8ff;
+    letter-spacing: 0.5px;
+}
+
+.candle-modal-close {
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid #ef4444;
+    color: #fca5a5;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+}
+
+.candle-modal-close:hover {
+    background: #ef4444;
+    color: #ffffff;
+}
+
+.candle-modal-subtitle {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: #c084fc;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-align: center;
+}
+
+.candle-chart-frame {
+    background: #090d16;
+    border: 1.5px solid #334155;
+    border-radius: 12px;
+    padding: 8px;
+    display: flex;
+    justify-content: center;
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.8);
+}
+
+#candleCanvas {
+    width: 100%;
+    height: 170px;
+    display: block;
+}
+
+.candle-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+}
+
+.c-card {
+    background: rgba(30, 41, 59, 0.7);
+    border: 1px solid #475569;
+    border-radius: 8px;
+    padding: 6px 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    text-align: center;
+}
+
+.c-card.bullish {
+    border-color: #10b981;
+    background: rgba(6, 95, 70, 0.25);
+}
+
+.c-card.bearish {
+    border-color: #ef4444;
+    background: rgba(153, 27, 27, 0.25);
+}
+
+.c-card .time-lbl {
+    font-size: 8.5px;
+    font-weight: 800;
+    color: #cbd5e1;
+}
+
+.c-card .badge-val {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 800;
+    padding: 1px 3px;
+    border-radius: 4px;
+}
+
+.c-card .badge-val.green { color: #34d399; }
+.c-card .badge-val.red { color: #fca5a5; }
+
+.c-card .price-row {
+    font-family: var(--font-mono);
+    font-size: 8.5px;
+    color: #94a3b8;
+    line-height: 1.3;
+}
+
 /* DIMENSION PORTAL (OPEN TRADELOCKER) STYLING */
 .portal-link-btn {
     display: flex;

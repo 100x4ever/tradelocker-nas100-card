@@ -75,7 +75,22 @@
                         </div>
                     </div>
 
-                    <!-- Move 3: Oracle Sight (5m Stochastic Fast & Heavy) -->
+                    <!-- Move 3: Candle Sight (Live 5m Candlestick Oracle Ability) -->
+                    <div class="move-row candle-sight-move-row">
+                        <div class="move-cost">
+                            <span class="energy-icon candle-sight">🕯️</span>
+                        </div>
+                        <div class="move-info">
+                            <div class="move-header candle-sight-header">
+                                <span class="move-name">Candle Sight</span>
+                                <button class="candle-sight-btn" id="btnOpenCandleSight">
+                                    <span>INSPECT 5M 🕯️</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Move 4: Oracle Sight (5m Stochastic Fast & Heavy) -->
                     <div class="move-row stoch-move-row">
                         <div class="move-cost">
                             <span class="energy-icon eye">👁️</span>
@@ -91,7 +106,7 @@
                         </div>
                     </div>
 
-                    <!-- Move 4: War Spoils (Cumulative Realized PnL) -->
+                    <!-- Move 5: War Spoils (Cumulative Realized PnL) -->
                     <div class="move-row">
                         <div class="move-cost">
                             <span class="energy-icon fire">🔥</span>
@@ -104,7 +119,7 @@
                         </div>
                     </div>
 
-                    <!-- Move 5: Valor Accuracy (Win Rate) -->
+                    <!-- Move 6: Valor Accuracy (Win Rate) -->
                     <div class="move-row">
                         <div class="move-cost">
                             <span class="energy-icon star">⭐</span>
@@ -117,7 +132,7 @@
                         </div>
                     </div>
 
-                    <!-- Move 6: Realm Portal (Open TradeLocker App) -->
+                    <!-- Move 7: Realm Portal (Open TradeLocker App) -->
                     <div class="move-row portal-move-row">
                         <div class="move-cost">
                             <span class="energy-icon portal">🚀</span>
@@ -146,6 +161,32 @@
                         <span class="val" id="cardFee">-$1.00 / LOT</span>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CANDLE SIGHT POP-UP MODAL OVERLAY -->
+    <div class="candle-modal-backdrop" id="candleSightModal" style="display: none;">
+        <div class="candle-modal-card">
+            <div class="candle-modal-header">
+                <div class="candle-modal-title">
+                    <span class="icon">🕯️</span>
+                    <h3>CANDLE SIGHT • 5M ORACLE</h3>
+                </div>
+                <button class="candle-modal-close" id="btnCloseCandleSight">✖</button>
+            </div>
+            <div class="candle-modal-subtitle">
+                LIVE 5-MINUTE NAS100 CANDLESTICKS (CURRENT + 2 PREVIOUS)
+            </div>
+
+            <!-- HTML5 Canvas Candlestick Chart -->
+            <div class="candle-chart-frame">
+                <canvas id="candleCanvas" width="340" height="170"></canvas>
+            </div>
+
+            <!-- 3 Candle Readout Cards Grid -->
+            <div class="candle-cards-grid" id="candleCardsGrid">
+                <!-- Dynamically populated in app.js -->
             </div>
         </div>
     </div>

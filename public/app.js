@@ -1,15 +1,47 @@
 let liveSummaryData = null;
 let lastRefreshTimestamp = Date.now();
+let isCandleModalOpen = False;
 
 document.addEventListener('DOMContentLoaded', () => {
     initEventListeners();
     fetchPortfolioSummary();
 
-    // Auto refresh every 4 seconds for reliable PnL, Equity & Stochastics updates
+    // Auto refresh every 4 seconds for reliable PnL, Equity, Stochastics & 5m Candles
     setInterval(fetchPortfolioSummary, 4000);
 });
 
 function initEventListeners() {
+    // CANDLE SIGHT MODAL TOGGLE
+    const btnOpenCandleSight = document.getElementById('btnOpenCandleSight');
+    const btnCloseCandleSight = document.getElementById('btnCloseCandleSight');
+    const candleSightModal = document.getElementById('candleSightModal');
+
+    if (btnOpenCandleSight && candleSightModal) {
+        btnOpenCandleSight.addEventListener('click', () => {
+            candleSightModal.style.display = 'flex';
+            isCandleModalOpen = true;
+            if (liveSummaryData && liveSummaryData.latest5mBars) {
+                renderCandleSightModal(liveSummaryData.latest5mBars);
+            }
+        });
+    }
+
+    if (btnCloseCandleSight && candleSightModal) {
+        btnCloseCandleSight.addEventListener('click', () => {
+            candleSightModal.style.display = 'none';
+            isCandleModalOpen = false;
+        });
+    }
+
+    if (candleSightModal) {
+        candleSightModal.addEventListener('click', (e) => {
+            if (e.target === candleSightModal) {
+                candleSightModal.style.display = 'none';
+                isCandleModalOpen = false;
+            }
+        });
+    }
+
     // BANISH Button: Instant Market Close ALL open positions
     const btnCloseNow = document.getElementById('btnCloseNow');
     if (btnCloseNow) {
@@ -87,9 +119,127 @@ async function fetchPortfolioSummary() {
         liveSummaryData = data;
         lastRefreshTimestamp = Date.now();
         renderData();
+
+        if (isCandleModalOpen && data.latest5mBars) {
+            renderCandleSightModal(data.latest5mBars);
+        }
     } catch (err) {
         console.error('Failed to fetch summary:', err);
     }
+}
+
+function renderCandleSightModal(bars) {
+    if (!bars || bars.length === 0) return;
+
+    const canvas = document.getElementById('candleCanvas');
+    const cardsGrid = document.getElementById('candleCardsGrid');
+    if (!canvas || !cardsGrid) return;
+
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+
+    // Clear Canvas
+    ctx.clearRect(0, 0, width, height);
+
+    // Draw Background Grid
+    ctx.strokeStyle = 'rgba(51, 65, 85, 0.4)';
+    ctx.lineWidth = 1;
+    for (let y = 30; y < height; y += 35) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+    }
+
+    // Min and Max Prices for 3 Candles
+    let minPrice = Infinity;
+    let maxPrice = -Infinity;
+    bars.forEach(b => {
+        if (b.l < minPrice) minPrice = b.l;
+        if (b.h > maxPrice) maxPrice = b.h;
+    });
+
+    const padding = (maxPrice - minPrice) * 0.15 || 5.0;
+    minPrice -= padding;
+    maxPrice += padding;
+
+    const priceToY = (p) => {
+        return height - 25 - ((p - minPrice) / (maxPrice - minPrice)) * (height - 50);
+    };
+
+    // Render 3 Candles on Canvas
+    const numBars = bars.length;
+    const colWidth = width / numBars;
+
+    bars.forEach((b, idx) => {
+        const xCenter = (idx + 0.5) * colWidth;
+        const openY = priceToY(b.o);
+        const closeY = priceToY(b.c);
+        const highY = priceToY(b.h);
+        const lowY = priceToY(b.l);
+
+        const isBullish = b.c >= b.o;
+        const color = isBullish ? '#10b981' : '#ef4444';
+
+        // Draw Wick
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(xCenter, highY);
+        ctx.lineTo(xCenter, lowY);
+        ctx.stroke();
+
+        // Draw Real Body
+        const bodyTop = Math.min(openY, closeY);
+        const bodyHeight = Math.max(Math.abs(closeY - openY), 4);
+        ctx.fillStyle = color;
+        ctx.fillRect(xCenter - 14, bodyTop, 28, bodyHeight);
+        ctx.strokeStyle = isBullish ? '#34d399' : '#fca5a5';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(xCenter - 14, bodyTop, 28, bodyHeight);
+
+        // Price Label Top (High)
+        ctx.fillStyle = '#cbd5e1';
+        ctx.font = '10px "JetBrains Mono", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(b.h.toFixed(1), xCenter, highY - 6);
+
+        // Time / Label Bottom
+        const d = new Date(b.t);
+        const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        const label = idx === numBars - 1 ? `${timeStr} (LIVE)` : timeStr;
+
+        ctx.fillStyle = idx === numBars - 1 ? '#38bdf8' : '#94a3b8';
+        ctx.font = 'bold 9.5px "JetBrains Mono", monospace';
+        ctx.fillText(label, xCenter, height - 6);
+    });
+
+    // Populate Readout Cards
+    cardsGrid.innerHTML = '';
+    const labels = ["2 BARS AGO", "PREVIOUS", "CURRENT LIVE"];
+
+    bars.forEach((b, idx) => {
+        const isBullish = b.c >= b.o;
+        const diff = b.c - b.o;
+        const diffSign = diff >= 0 ? '+' : '';
+        const d = new Date(b.t);
+        const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+
+        const cardEl = document.createElement('div');
+        cardEl.className = `c-card ${isBullish ? 'bullish' : 'bearish'}`;
+        cardEl.innerHTML = `
+            <div class="time-lbl">${timeStr} • ${labels[idx]}</div>
+            <div class="badge-val ${isBullish ? 'green' : 'red'}">${diffSign}${diff.toFixed(1)} P</div>
+            <div class="price-row">
+                O: ${b.o.toFixed(1)}<br>
+                H: ${b.h.toFixed(1)}<br>
+                L: ${b.l.toFixed(1)}<br>
+                C: ${b.c.toFixed(1)}
+            </div>
+        `;
+        cardsGrid.appendChild(cardEl);
+    });
 }
 
 function renderData() {
