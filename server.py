@@ -419,7 +419,7 @@ def check_and_apply_auto_stoploss(open_positions, nas_open_pnl):
     - $40 PnL: Move to +$35 Stop Loss
     - $45 PnL: Move to +$40 Stop Loss
     - $50 PnL: Move to +$45 Stop Loss
-    - $55 PnL: Move to +$50 Stop Loss
+    - $55+ PnL: Move to +$50 Stop Loss (Continuous trailing above $55)
     """
     SL_LADDER = [
         (55.0, 50.0),
@@ -440,14 +440,31 @@ def check_and_apply_auto_stoploss(open_positions, nas_open_pnl):
         p_unrealized = float(pos.get("unrealizedPl") or 0.0)
         effective_pnl = max(nas_open_pnl, p_unrealized)
         has_sl = pos.get("stopLossPrice") is not None or pos.get("stopLoss") is not None
+        sl_price = pos.get("stopLossPrice")
+        side = str(pos.get("side", "buy")).lower()
+        qty = float(pos.get("qty") or 0.01)
+        entry_p = float(pos.get("avgPrice") or 0.0)
 
+        # Recover existing locked SL amount if server restarted
         current_locked = highest_sl_locked.get(p_id, None)
+        if current_locked is None and sl_price and entry_p > 0 and qty > 0:
+            existing_diff = (sl_price - entry_p) * qty if side == 'buy' else (entry_p - sl_price) * qty
+            current_locked = round(existing_diff, 1)
+            highest_sl_locked[p_id] = current_locked
 
         target_sl_amount = None
+
+        # Check ladder thresholds
         for pnl_thresh, sl_amt in SL_LADDER:
             if effective_pnl >= pnl_thresh:
                 target_sl_amount = sl_amt
                 break
+
+        # Dynamic trailing for PnL > 55.0
+        if effective_pnl > 55.0:
+            dynamic_target = round(effective_pnl - 5.0, 1)
+            if target_sl_amount is None or dynamic_target > target_sl_amount:
+                target_sl_amount = dynamic_target
 
         if target_sl_amount is not None:
             if current_locked is None or target_sl_amount > current_locked:
@@ -500,13 +517,13 @@ def place_passive_ability_order(side):
         req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
         with urllib.request.urlopen(req, context=ctx) as resp:
             res = json.loads(resp.read().decode('utf-8'))
-            print(f"[{time.strftime('%H:%M:%S')}] ⚡ PASSIVE ABILITY TRIGGERED! Executed {side.upper()} order for 0.33 lots NAS100!")
+            print(f"[{time.strftime('%H:%M:%S')}] ⚡ CANDLE MAGIC TRIGGERED! Executed {side.upper()} order for 0.33 lots NAS100!")
             last_passive_entry_time = now
             live_cache["data"] = None
             live_cache["last_fetch"] = 0
             return True, f"Placed {side.upper()} order for 0.33 lots"
     except Exception as e:
-        print("Error executing passive ability order:", e)
+        print("Error executing candle magic order:", e)
         return False, str(e)
 
 def check_and_apply_passive_ability(open_positions):
@@ -556,16 +573,16 @@ def check_and_apply_passive_ability(open_positions):
     bear_trigger = is_bear_engulf or is_tweezer_top or is_evening_star
 
     if bull_location and bull_trigger:
-        print(f"[{time.strftime('%H:%M:%S')}] 🟢 PASSIVE ABILITY: BULLISH 5m Confluence Detected! Placing BUY 0.33 lots...")
+        print(f"[{time.strftime('%H:%M:%S')}] 🟢 CANDLE MAGIC: BULLISH 5m Confluence Detected! Placing BUY 0.33 lots...")
         place_passive_ability_order("buy")
 
     elif bear_location and bear_trigger:
-        print(f"[{time.strftime('%H:%M:%S')}] 🔴 PASSIVE ABILITY: BEARISH 5m Confluence Detected! Placing SELL 0.33 lots...")
+        print(f"[{time.strftime('%H:%M:%S')}] 🔴 CANDLE MAGIC: BEARISH 5m Confluence Detected! Placing SELL 0.33 lots...")
         place_passive_ability_order("sell")
 
 def background_auto_sl_monitor_thread():
     """Background daemon thread running 24/7 on Railway server to manage Stop Losses and Passive Ability entries."""
-    print(f"[{time.strftime('%H:%M:%S')}] Background 24/7 Auto Guardian & Passive Ability Engine Running!")
+    print(f"[{time.strftime('%H:%M:%S')}] Background 24/7 Auto Guardian & Candle Magic Engine Running!")
     while True:
         try:
             time.sleep(4.0)
@@ -696,7 +713,7 @@ def get_tradelocker_data(retry_on_401=True):
         # AUTOMATIC 24/7 AUTO STOP LOSS LADDER GUARDIAN
         check_and_apply_auto_stoploss(open_positions, open_pnl_by_inst["NAS100"])
 
-        # PASSIVE ABILITY AUTO-ENTRY ENGINE (STRICTLY 1 OPEN TRADE AT A TIME)
+        # CANDLE MAGIC AUTO-ENTRY ENGINE (STRICTLY 1 OPEN TRADE AT A TIME)
         check_and_apply_passive_ability(open_positions)
 
         metrics = meta_cache.get("metrics") or {
@@ -1065,7 +1082,7 @@ class TradeLockerHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 session_config["passive_ability"] = bool(active_state)
             
             live_cache["data"] = None
-            print(f"[{time.strftime('%H:%M:%S')}] ⚡ PASSIVE ABILITY Toggled -> {session_config['passive_ability']} (0.33 lots, Max 1 Trade)")
+            print(f"[{time.strftime('%H:%M:%S')}] ⚡ CANDLE MAGIC Toggled -> {session_config['passive_ability']} (0.33 lots, Max 1 Trade)")
 
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
@@ -1074,7 +1091,7 @@ class TradeLockerHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 "status": "ok",
                 "active": session_config["passive_ability"],
                 "lotSize": session_config["passive_lot_size"],
-                "message": f"Passive Ability is now {'ACTIVE (0.33 L)' if session_config['passive_ability'] else 'OFF'}"
+                "message": f"Candle Magic is now {'READ CANDLES' if session_config['passive_ability'] else 'BLOWOUT'}"
             }).encode('utf-8'))
 
         elif self.path == '/api/set-trailing-stop':
