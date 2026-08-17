@@ -327,87 +327,36 @@ body {
     100% { box-shadow: 0 0 16px #10b981, inset 0 0 10px rgba(16, 185, 129, 0.9); }
 }
 
-/* DEFENSIVE SHIELD STOP LOSS & STALK BUTTON STYLING */
-.def-header {
-    margin-bottom: 3px;
-}
-
-.def-btn-row {
-    display: flex;
-    gap: 3px;
-}
-
-.def-btn {
-    flex: 1;
-    background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
-    border: 1px solid #60a5fa;
-    border-radius: 6px;
-    color: #ffffff;
-    font-family: var(--font-main);
-    font-size: 8.5px;
+/* DEFENSIVE SHIELD POWER READOUT DISPLAY STYLING */
+.shield-power-val {
+    font-family: var(--font-mono);
+    font-size: 14px;
     font-weight: 800;
-    padding: 4px 1px;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    box-shadow: 0 2px 6px rgba(30, 58, 138, 0.4);
-    white-space: nowrap;
-    text-align: center;
+    padding: 2px 8px;
+    border-radius: 6px;
+    letter-spacing: 0.4px;
+    transition: all 0.2s ease;
 }
 
-.def-btn.sl-be {
-    background: linear-gradient(135deg, #047857 0%, #059669 100%);
-    border-color: #34d399;
+.shield-power-val.positive {
+    color: #34d399;
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid #10b981;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+    animation: shinyGlowTp 1.5s infinite alternate;
 }
 
-.def-btn.sl-p5,
-.def-btn.sl-p15 {
-    background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
-    border-color: #2dd4bf;
+.shield-power-val.negative {
+    color: #60a5fa;
+    background: rgba(30, 58, 138, 0.3);
+    border: 1px solid #3b82f6;
+    box-shadow: 0 0 8px rgba(59, 130, 246, 0.3);
 }
 
-.def-btn.sl-stalk {
-    background: linear-gradient(135deg, #78350f 0%, #92400e 100%);
-    border-color: #fbbf24;
-}
-
-/* SHINY GLOWING BORDER FOR ACTIVE STOP LOSS BUTTONS */
-.def-btn.active-sl-glow {
-    border: 2px solid #93c5fd !important;
-    box-shadow: 0 0 12px #3b82f6, inset 0 0 8px rgba(59, 130, 246, 0.8) !important;
-    animation: shinyGlowSl 1.5s infinite alternate !important;
-}
-
-@keyframes shinyGlowSl {
-    0% { box-shadow: 0 0 6px #3b82f6, inset 0 0 4px rgba(59, 130, 246, 0.4); }
-    100% { box-shadow: 0 0 16px #60a5fa, inset 0 0 10px rgba(96, 165, 250, 0.9); }
-}
-
-.def-btn.sl-be:hover:not(:disabled),
-.def-btn.sl-p5:hover:not(:disabled),
-.def-btn.sl-p15:hover:not(:disabled) {
-    background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
-    box-shadow: 0 4px 10px rgba(20, 184, 166, 0.5);
-}
-
-.def-btn.sl-stalk:hover:not(:disabled) {
-    background: linear-gradient(135deg, #b45309 0%, #78350f 100%);
-    box-shadow: 0 4px 10px rgba(245, 158, 11, 0.5);
-}
-
-.def-btn:hover:not(:disabled) {
-    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 10px rgba(37, 99, 235, 0.5);
-}
-
-.def-btn:active:not(:disabled) {
-    transform: translateY(0);
-}
-
-.def-btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-    border-color: #475569;
+.shield-power-val.neutral {
+    color: #94a3b8;
+    background: rgba(51, 65, 85, 0.3);
+    border: 1px solid #475569;
 }
 
 /* DIMENSION PORTAL (OPEN TRADELOCKER) STYLING */
@@ -466,7 +415,7 @@ body {
     background: rgba(15, 23, 42, 0.85);
     padding: 1.5px 5px;
     border-radius: 5px;
-    border: 1px solid rgba(255,255,255,0.08);
+    border: 1.5px solid rgba(255,255,255,0.08);
 }
 
 .stoch-badge {

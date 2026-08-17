@@ -1,7 +1,5 @@
 let liveSummaryData = null;
 let lastRefreshTimestamp = Date.now();
-const autoSlNotified = new Set();
-let isStalkingActive = false;
 
 document.addEventListener('DOMContentLoaded', () => {
     initEventListeners();
@@ -40,90 +38,10 @@ function initEventListeners() {
         });
     }
 
-    // Defensive Move: Set Break Even (BE), Positive Lock (+$5, +$15), -$5 and -$10 Stop Loss
-    const btnSlBe = document.getElementById('btnSlBe');
-    const btnSlP5 = document.getElementById('btnSlP5');
-    const btnSlP15 = document.getElementById('btnSlP15');
-    const btnSl5 = document.getElementById('btnSl5');
-    const btnSl10 = document.getElementById('btnSl10');
-    const btnStalk = document.getElementById('btnStalk');
-
     // Max Power Move: Set +$10, +$15, +$20 Take Profit
     const btnTp10 = document.getElementById('btnTp10');
     const btnTp15 = document.getElementById('btnTp15');
     const btnTp20 = document.getElementById('btnTp20');
-
-    // STALK Button: Toggle & Activate Trailing Stop Loss on active positions
-    if (btnStalk) {
-        btnStalk.addEventListener('click', async () => {
-            const nextState = !isStalkingActive;
-            const confirmed = confirm(`Defensive Shield: ${nextState ? 'Activate STALK Mode (Convert Stop Loss to Trailing Stop)' : 'Deactivate STALK Mode'} on ALL open positions?`);
-            if (!confirmed) return;
-
-            btnStalk.disabled = true;
-            try {
-                const res = await fetch('/api/set-trailing-stop', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ positionId: "all", trailingOffset: 10.0 })
-                });
-                const data = await res.json();
-
-                if (data.status === 'ok') {
-                    isStalkingActive = nextState;
-                    btnStalk.classList.toggle('active-sl-glow', isStalkingActive);
-                    btnStalk.innerText = isStalkingActive ? "🐾 STALKING" : "🐾 STALK";
-                    alert(data.message || "STALK Trailing Stop mode activated!");
-                    fetchPortfolioSummary();
-                } else {
-                    alert("Failed to activate STALK: " + (data.message || "Could not set trailing stop"));
-                }
-            } catch (err) {
-                alert("Error setting trailing stop: " + err.message);
-            } finally {
-                btnStalk.disabled = false;
-            }
-        });
-    }
-
-    const executeStopLoss = async (amount) => {
-        let label = "";
-        if (amount === 0) label = "Break Even (Exact Entry Price)";
-        else if (amount > 0) label = `+$${amount}.00 Profit Lock`;
-        else label = `-$${Math.abs(amount)}.00 Loss Cap`;
-
-        const confirmed = confirm(`Apply Defensive Shield: Set ${label} Stop Loss on ALL active open positions?`);
-        if (!confirmed) return;
-
-        if (btnSlBe) btnSlBe.disabled = true;
-        if (btnSlP5) btnSlP5.disabled = true;
-        if (btnSlP15) btnSlP15.disabled = true;
-        if (btnSl5) btnSl5.disabled = true;
-        if (btnSl10) btnSl10.disabled = true;
-
-        try {
-            const res = await fetch('/api/set-stoploss', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ positionId: "all", amount: amount })
-            });
-            const data = await res.json();
-            if (data.status === 'ok') {
-                alert(data.message);
-                fetchPortfolioSummary();
-            } else {
-                alert("Failed: " + (data.message || "Could not set Stop Loss"));
-            }
-        } catch (err) {
-            alert("Error setting Stop Loss: " + err.message);
-        } finally {
-            if (btnSlBe) btnSlBe.disabled = false;
-            if (btnSlP5) btnSlP5.disabled = false;
-            if (btnSlP15) btnSlP15.disabled = false;
-            if (btnSl5) btnSl5.disabled = false;
-            if (btnSl10) btnSl10.disabled = false;
-        }
-    };
 
     const executeTakeProfit = async (amount) => {
         const confirmed = confirm(`Unrealized Strike: Set +$${amount}.00 Take Profit on ALL active open positions?`);
@@ -154,12 +72,6 @@ function initEventListeners() {
             if (btnTp20) btnTp20.disabled = false;
         }
     };
-
-    if (btnSlBe) btnSlBe.addEventListener('click', () => executeStopLoss(0.0));
-    if (btnSlP5) btnSlP5.addEventListener('click', () => executeStopLoss(5.0)); // Positive +$5 Profit Lock
-    if (btnSlP15) btnSlP15.addEventListener('click', () => executeStopLoss(15.0)); // Positive +$15 Profit Lock
-    if (btnSl5) btnSl5.addEventListener('click', () => executeStopLoss(-5.0));  // Negative -$5 Loss Cap
-    if (btnSl10) btnSl10.addEventListener('click', () => executeStopLoss(-10.0)); // Negative -$10 Loss Cap
 
     if (btnTp10) btnTp10.addEventListener('click', () => executeTakeProfit(10.0));
     if (btnTp15) btnTp15.addEventListener('click', () => executeTakeProfit(15.0));
@@ -202,71 +114,76 @@ function renderData() {
         return name.includes('NAS') || name.includes('100') || p.tradableInstrumentId === '3884';
     });
 
-    // --- ENABLE / DISABLE BUTTONS BASED ON OPEN POSITIONS ---
-    const btnCloseNow = document.getElementById('btnCloseNow');
-    const btnSlBe = document.getElementById('btnSlBe');
-    const btnSlP5 = document.getElementById('btnSlP5');
-    const btnSlP15 = document.getElementById('btnSlP15');
-    const btnSl5 = document.getElementById('btnSl5');
-    const btnSl10 = document.getElementById('btnSl10');
-    const btnStalk = document.getElementById('btnStalk');
+    const hasOpenPositions = nasPositions.length > 0;
 
+    // --- ENABLE / DISABLE TAKE PROFIT & NOW BUTTONS ---
+    const btnCloseNow = document.getElementById('btnCloseNow');
     const btnTp10 = document.getElementById('btnTp10');
     const btnTp15 = document.getElementById('btnTp15');
     const btnTp20 = document.getElementById('btnTp20');
 
-    const hasOpenPositions = nasPositions.length > 0;
-
     if (btnCloseNow) btnCloseNow.disabled = !hasOpenPositions;
-    if (btnSlBe) btnSlBe.disabled = !hasOpenPositions;
-    if (btnSlP5) btnSlP5.disabled = !hasOpenPositions;
-    if (btnSlP15) btnSlP15.disabled = !hasOpenPositions;
-    if (btnSl5) btnSl5.disabled = !hasOpenPositions;
-    if (btnSl10) btnSl10.disabled = !hasOpenPositions;
-
     if (btnTp10) btnTp10.disabled = !hasOpenPositions;
     if (btnTp15) btnTp15.disabled = !hasOpenPositions;
     if (btnTp20) btnTp20.disabled = !hasOpenPositions;
 
-    // --- SHINY GLOWING BORDER HIGHLIGHTING FOR ACTIVE TP AND SL BUTTONS ---
+    // --- SHINY GLOWING BORDER HIGHLIGHTING FOR ACTIVE TAKE PROFIT BUTTONS ---
     [btnTp10, btnTp15, btnTp20].forEach(b => b && b.classList.remove('active-tp-glow'));
-    [btnSlBe, btnSlP5, btnSlP15, btnSl5, btnSl10, btnStalk].forEach(b => b && b.classList.remove('active-sl-glow'));
 
     if (hasOpenPositions) {
         nasPositions.forEach(p => {
             const side = (p.side || 'buy').toLowerCase();
             const qty = parseFloat(p.qty || 0.01);
             const entry = parseFloat(p.avgPrice || 0);
-            const sl = p.stopLoss ? parseFloat(p.stopLoss) : null;
             const tp = p.takeProfit ? parseFloat(p.takeProfit) : null;
 
-            // Check Take Profits
             if (tp && entry > 0 && qty > 0) {
                 const diff = side === 'buy' ? (tp - entry) * qty : (entry - tp) * qty;
                 if (Math.abs(diff - 10.0) < 1.5 && btnTp10) btnTp10.classList.add('active-tp-glow');
                 if (Math.abs(diff - 15.0) < 1.5 && btnTp15) btnTp15.classList.add('active-tp-glow');
                 if (Math.abs(diff - 20.0) < 1.5 && btnTp20) btnTp20.classList.add('active-tp-glow');
             }
-
-            // Check Stop Losses
-            if (sl && entry > 0 && qty > 0) {
-                const diff = side === 'buy' ? (sl - entry) * qty : (entry - sl) * qty;
-                if (Math.abs(diff - 0.0) < 0.5 && btnSlBe) btnSlBe.classList.add('active-sl-glow');
-                if (Math.abs(diff - 5.0) < 1.2 && btnSlP5) btnSlP5.classList.add('active-sl-glow');
-                if (Math.abs(diff - 15.0) < 1.2 && btnSlP15) btnSlP15.classList.add('active-sl-glow');
-                if (Math.abs(diff - (-5.0)) < 1.2 && btnSl5) btnSl5.classList.add('active-sl-glow');
-                if (Math.abs(diff - (-10.0)) < 1.2 && btnSl10) btnSl10.classList.add('active-sl-glow');
-            }
-
-            // Check Trailing Stop (STALK)
-            if (p.trailingOffset && btnStalk) {
-                btnStalk.classList.add('active-sl-glow');
-                btnStalk.innerText = "🐾 STALKING";
-            }
         });
     }
 
-    // --- 3. DYNAMIC POKEMON MOOD ARTWORK SWITCHING (+15 & +20 TIERS INCLUDED) ---
+    // --- DEFENSIVE SHIELD: SHOW ONLY THE 'SHIELD POWER' READOUT (ACTIVE STOPLOSS) ---
+    const shieldPowerEl = document.getElementById('cardShieldPower');
+    if (shieldPowerEl) {
+        if (!hasOpenPositions) {
+            shieldPowerEl.innerText = "STANDBY";
+            shieldPowerEl.className = "shield-power-val neutral";
+        } else {
+            const p = nasPositions[0];
+            const side = (p.side || 'buy').toLowerCase();
+            const qty = parseFloat(p.qty || 0.01);
+            const entry = parseFloat(p.avgPrice || 0);
+
+            if (p.trailingOffset) {
+                shieldPowerEl.innerText = "🐾 STALKING";
+                shieldPowerEl.className = "shield-power-val positive";
+            } else if (p.stopLoss && entry > 0 && qty > 0) {
+                const slPrice = parseFloat(p.stopLoss);
+                const diff = side === 'buy' ? (slPrice - entry) * qty : (entry - slPrice) * qty;
+
+                if (Math.abs(diff) < 0.25) {
+                    shieldPowerEl.innerText = "🛡️ BE ($0.00)";
+                    shieldPowerEl.className = "shield-power-val positive";
+                } else if (diff > 0) {
+                    shieldPowerEl.innerText = `🛡️ +$${diff.toFixed(2)}`;
+                    shieldPowerEl.className = "shield-power-val positive";
+                } else {
+                    shieldPowerEl.innerText = `🛡️ -$${Math.abs(diff).toFixed(2)}`;
+                    shieldPowerEl.className = "shield-power-val negative";
+                }
+            } else {
+                // If stop loss is currently being attached by daemon
+                shieldPowerEl.innerText = "🛡️ -$10.00";
+                shieldPowerEl.className = "shield-power-val negative";
+            }
+        }
+    }
+
+    // --- 3. DYNAMIC POKEMON MOOD ARTWORK SWITCHING ---
     const artImg = document.getElementById('cardArtImg');
     if (artImg) {
         let isShort = false;
