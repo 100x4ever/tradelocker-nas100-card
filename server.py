@@ -53,7 +53,8 @@ bars_cache = {
     "bars": []
 }
 
-# Track auto-triggered SLs for position IDs to prevent duplicate calls
+# Track auto-triggered SLs for position IDs
+auto_sl_initial_10 = set()
 auto_sl_triggered_5 = set()
 auto_sl_triggered_15 = set()
 
@@ -303,32 +304,42 @@ def get_default_stochastics():
 
 def check_and_apply_auto_stoploss(open_positions, nas_open_pnl):
     """
-    Automatic 24/7 background Stop Loss progression:
-    - At +$10.00 PnL -> Auto-lock +$5.00 Stop Loss
-    - At +$20.00 PnL -> Auto-move Stop Loss up to +$15.00!
+    Automatic 24/7 background Stop Loss Life-Cycle Management:
+    1. New position placed -> Automatically attach -$10.00 Stop Loss immediately!
+    2. At +$10.00 PnL -> Auto-move Stop Loss up to +$5.00 Protective Stop!
+    3. At +$20.00 PnL -> Auto-move Stop Loss up to +$15.00 Protective Stop!
     """
     for pos in open_positions:
         p_id = str(pos.get("id") or pos.get("positionId"))
         if not p_id:
             continue
         p_unrealized = float(pos.get("unrealizedPl") or 0.0)
+        has_sl = pos.get("stopLoss") is not None
 
-        # Tier 2: PnL >= $20.00 -> Move Stop Loss up to +$15.00
+        # 1. Tier 2: PnL >= $20.00 -> Move Stop Loss up to +$15.00
         if (nas_open_pnl >= 20.0 or p_unrealized >= 20.0) and p_id not in auto_sl_triggered_15:
             print(f"[{time.strftime('%H:%M:%S')}] [AUTO SL TIER 2] PnL reached +$20.00+ (Total: +${nas_open_pnl:.2f}, Pos: +${p_unrealized:.2f})! Auto-moving Stop Loss up to +$15.00 on position #{p_id}")
             auto_sl_triggered_15.add(p_id)
             auto_sl_triggered_5.add(p_id)
+            auto_sl_initial_10.add(p_id)
             set_position_stoploss(p_id, 15.0)
 
-        # Tier 1: PnL >= $10.00 -> Lock +$5.00 Stop Loss
+        # 2. Tier 1: PnL >= $10.00 -> Move Stop Loss up to +$5.00
         elif (nas_open_pnl >= 10.0 or p_unrealized >= 10.0) and p_id not in auto_sl_triggered_5:
             print(f"[{time.strftime('%H:%M:%S')}] [AUTO SL TIER 1] PnL reached +$10.00+ (Total: +${nas_open_pnl:.2f}, Pos: +${p_unrealized:.2f})! Auto-locking +$5.00 Stop Loss on position #{p_id}")
             auto_sl_triggered_5.add(p_id)
+            auto_sl_initial_10.add(p_id)
             set_position_stoploss(p_id, 5.0)
 
+        # 3. Initial Placement: New position without SL -> Auto-attach -$10.00 Stop Loss immediately!
+        elif not has_sl and p_id not in auto_sl_initial_10:
+            print(f"[{time.strftime('%H:%M:%S')}] [AUTO SL INITIAL] New Position #{p_id} detected! Auto-attaching -$10.00 initial Stop Loss risk cap!")
+            auto_sl_initial_10.add(p_id)
+            set_position_stoploss(p_id, -10.0)
+
 def background_auto_sl_monitor_thread():
-    """Background daemon thread running 24/7 on Railway server to auto-lock +$5 SL and +$15 SL even if app/browser is closed."""
-    print(f"[{time.strftime('%H:%M:%S')}] Background 24/7 Auto Stop Loss Monitor Loop Started (+5 SL @ $10 PnL, +15 SL @ $20 PnL)!")
+    """Background daemon thread running 24/7 on Railway server to manage Stop Losses automatically."""
+    print(f"[{time.strftime('%H:%M:%S')}] Background 24/7 Auto Stop Loss Guardian Started (Initial -$10 SL on open, +$5 SL @ $10 PnL, +$15 SL @ $20 PnL)!")
     while True:
         try:
             time.sleep(4.0)
@@ -427,7 +438,7 @@ def get_tradelocker_data(retry_on_401=True):
             else:
                 open_pnl_by_inst["OTHER"] += unrealized
 
-        # AUTOMATIC 24/7 AUTO STOP LOSS PROGRESSION (+5 SL @ $10 PnL, +15 SL @ $20 PnL)
+        # AUTOMATIC 24/7 AUTO STOP LOSS GUARDIAN (-$10 SL on open, +$5 SL @ $10 PnL, +$15 SL @ $20 PnL)
         check_and_apply_auto_stoploss(open_positions, open_pnl_by_inst["NAS100"])
 
         metrics = meta_cache.get("metrics") or {
@@ -897,7 +908,7 @@ class TradeLockerHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             else:
                 self.wfile.write(json.dumps({"status": "error", "message": "Failed to connect to TradeLocker"}).encode('utf-8'))
 
-# Launch 24/7 background daemon monitor thread for auto +$5 SL and +$15 SL triggers
+# Launch 24/7 background daemon monitor thread for auto SL life-cycle management
 bg_thread = threading.Thread(target=background_auto_sl_monitor_thread, daemon=True)
 bg_thread.start()
 
