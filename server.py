@@ -53,10 +53,8 @@ bars_cache = {
     "bars": []
 }
 
-# Track auto-triggered SLs for position IDs to prevent duplicate calls
-auto_sl_initial_10 = set()
-auto_sl_triggered_5 = set()
-auto_sl_triggered_15 = set()
+# Track auto-triggered highest SL level for each position ID
+highest_sl_locked = {}
 
 def get_jwt_token():
     """Authenticate and fetch a fresh TradeLocker JWT token."""
@@ -367,45 +365,62 @@ def execute_patch_stoploss_for_position(target_pos, loss_amount):
 
 def check_and_apply_auto_stoploss(open_positions, nas_open_pnl):
     """
-    Automatic 24/7 background Stop Loss Life-Cycle Guardian:
-    1. New position placed -> Automatically attach -$10.00 initial Stop Loss immediately!
-    2. PnL >= +$10.00 -> Auto-move Stop Loss up to +$5.00 Protective Stop!
-    3. PnL >= +$20.00 -> Auto-move Stop Loss up to +$15.00 Protective Stop!
+    Automatic 24/7 Background Stop Loss Escalation Ladder:
+    - Initial Placement: Auto-attach -$10.00 Stop Loss on new orders
+    - $10 PnL: Move to +$5 Stop Loss
+    - $20 PnL: Move to +$15 Stop Loss
+    - $25 PnL: Move to +$20 Stop Loss
+    - $30 PnL: Move to +$25 Stop Loss
+    - $35 PnL: Move to +$30 Stop Loss
+    - $40 PnL: Move to +$35 Stop Loss
+    - $45 PnL: Move to +$40 Stop Loss
+    - $50 PnL: Move to +$45 Stop Loss
+    - $55 PnL: Move to +$50 Stop Loss
     """
+    SL_LADDER = [
+        (55.0, 50.0),
+        (50.0, 45.0),
+        (45.0, 40.0),
+        (40.0, 35.0),
+        (35.0, 30.0),
+        (30.0, 25.0),
+        (25.0, 20.0),
+        (20.0, 15.0),
+        (10.0, 5.0)
+    ]
+
     for pos in open_positions:
         p_id = str(pos.get("id") or pos.get("positionId"))
         if not p_id:
             continue
         p_unrealized = float(pos.get("unrealizedPl") or 0.0)
+        effective_pnl = max(nas_open_pnl, p_unrealized)
         has_sl = pos.get("stopLoss") is not None and str(pos.get("stopLoss")).strip() != ""
 
-        # 1. Tier 2: PnL >= $20.00 -> Move Stop Loss up to +$15.00
-        if (nas_open_pnl >= 20.0 or p_unrealized >= 20.0) and p_id not in auto_sl_triggered_15:
-            print(f"[{time.strftime('%H:%M:%S')}] [AUTO SL TIER 2] PnL reached +$20.00+ (Total: +${nas_open_pnl:.2f}, Pos: +${p_unrealized:.2f})! Auto-moving Stop Loss up to +$15.00 on position #{p_id}")
-            ok, msg = execute_patch_stoploss_for_position(pos, 15.0)
-            if ok:
-                auto_sl_triggered_15.add(p_id)
-                auto_sl_triggered_5.add(p_id)
-                auto_sl_initial_10.add(p_id)
+        current_locked = highest_sl_locked.get(p_id, None)
 
-        # 2. Tier 1: PnL >= $10.00 -> Move Stop Loss up to +$5.00
-        elif (nas_open_pnl >= 10.0 or p_unrealized >= 10.0) and p_id not in auto_sl_triggered_5:
-            print(f"[{time.strftime('%H:%M:%S')}] [AUTO SL TIER 1] PnL reached +$10.00+ (Total: +${nas_open_pnl:.2f}, Pos: +${p_unrealized:.2f})! Auto-locking +$5.00 Stop Loss on position #{p_id}")
-            ok, msg = execute_patch_stoploss_for_position(pos, 5.0)
-            if ok:
-                auto_sl_triggered_5.add(p_id)
-                auto_sl_initial_10.add(p_id)
+        target_sl_amount = None
+        for pnl_thresh, sl_amt in SL_LADDER:
+            if effective_pnl >= pnl_thresh:
+                target_sl_amount = sl_amt
+                break
 
-        # 3. Initial Placement: New position without SL -> Auto-attach -$10.00 Stop Loss immediately!
-        elif not has_sl and p_id not in auto_sl_initial_10:
+        if target_sl_amount is not None:
+            if current_locked is None or target_sl_amount > current_locked:
+                print(f"[{time.strftime('%H:%M:%S')}] [AUTO SL LADDER] PnL reached +${effective_pnl:.2f}! Auto-moving Stop Loss up to +${target_sl_amount:.2f} on position #{p_id}")
+                ok, msg = execute_patch_stoploss_for_position(pos, target_sl_amount)
+                if ok:
+                    highest_sl_locked[p_id] = target_sl_amount
+
+        elif not has_sl and current_locked is None:
             print(f"[{time.strftime('%H:%M:%S')}] [AUTO SL INITIAL] New Position #{p_id} detected! Auto-attaching -$10.00 initial Stop Loss risk cap!")
             ok, msg = execute_patch_stoploss_for_position(pos, -10.0)
             if ok:
-                auto_sl_initial_10.add(p_id)
+                highest_sl_locked[p_id] = -10.0
 
 def background_auto_sl_monitor_thread():
     """Background daemon thread running 24/7 on Railway server to manage Stop Losses automatically."""
-    print(f"[{time.strftime('%H:%M:%S')}] Background 24/7 Auto Stop Loss Guardian Started (Initial -$10 SL on open, +$5 SL @ $10 PnL, +$15 SL @ $20 PnL)!")
+    print(f"[{time.strftime('%H:%M:%S')}] Background 24/7 Auto Stop Loss Guardian Ladder Running!")
     while True:
         try:
             time.sleep(4.0)
@@ -504,7 +519,7 @@ def get_tradelocker_data(retry_on_401=True):
             else:
                 open_pnl_by_inst["OTHER"] += unrealized
 
-        # AUTOMATIC 24/7 AUTO STOP LOSS GUARDIAN (-$10 SL on open, +$5 SL @ $10 PnL, +$15 SL @ $20 PnL)
+        # AUTOMATIC 24/7 AUTO STOP LOSS LADDER GUARDIAN
         check_and_apply_auto_stoploss(open_positions, open_pnl_by_inst["NAS100"])
 
         metrics = meta_cache.get("metrics") or {
@@ -565,7 +580,6 @@ def set_position_stoploss(position_id, loss_amount):
         target_positions = positions
 
     updated_count = 0
-    sl_price_last = 0.0
 
     for target_pos in target_positions:
         ok, msg = execute_patch_stoploss_for_position(target_pos, loss_amount)
@@ -706,7 +720,7 @@ def set_position_takeprofit(position_id, profit_amount):
 
         tp_price_last = tp_price
         patch_body = json.dumps({"takeProfit": tp_price}).encode('utf-8')
-        url = f"{base_url}/trade/positions/{p_id}"
+        url = f"{base_url}/trade/positions/{pos_id if 'pos_id' in locals() else p_id}"
 
         try:
             req = urllib.request.Request(url, data=patch_body, headers=auth_headers, method="PATCH")
