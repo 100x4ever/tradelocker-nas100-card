@@ -1,6 +1,6 @@
 let liveSummaryData = null;
 let lastRefreshTimestamp = Date.now();
-let isCandleModalOpen = False;
+let isCandleModalOpen = false;
 
 document.addEventListener('DOMContentLoaded', () => {
     initEventListeners();
@@ -417,7 +417,7 @@ function renderData() {
 
     // 7. Stat Pills: Gold Balance, War Factor, Retreat Toll (-$1 / LOT)
     document.getElementById('cardBalance').innerText = `$${account.balance.toFixed(2)}`;
-    document.getElementById('cardProfitFactor').innerText = nasMetric.profitFactor ? nasMetric.profitFactor.toFixed(2) : (overallMetric.profitFactor ? overallMetric.profitFactor.toFixed(2) : '11.49');
+    document.getElementById('cardProfitFactor').innerText = nasMetric.profitFactor ? nasMetric.profitFactor.toFixed(2) : (overallMetric.profitFactor ? overallMetric.profitFactor.toFixed(2) : '2.52');
 
     // Retreat Cost: Clean -$1.00 / LOT
     document.getElementById('cardFee').innerText = `-$1.00 / LOT`;
