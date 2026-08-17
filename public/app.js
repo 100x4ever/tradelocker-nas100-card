@@ -10,6 +10,28 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initEventListeners() {
+    // PASSIVE ABILITY TOGGLE BUTTON (0.33 Lots Auto-Entry Bot, Max 1 Open Trade)
+    const btnPassiveToggle = document.getElementById('btnPassiveToggle');
+    if (btnPassiveToggle) {
+        btnPassiveToggle.addEventListener('click', async () => {
+            btnPassiveToggle.disabled = true;
+            try {
+                const res = await fetch('/api/toggle-passive-ability', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    renderPassiveAbilityState(data.active, data.lotSize);
+                }
+            } catch (err) {
+                console.error("Failed to toggle passive ability:", err);
+            } finally {
+                btnPassiveToggle.disabled = false;
+            }
+        });
+    }
+
     // NOW Button: Instant Market Close ALL open positions
     const btnCloseNow = document.getElementById('btnCloseNow');
     if (btnCloseNow) {
@@ -78,6 +100,21 @@ function initEventListeners() {
     if (btnTp20) btnTp20.addEventListener('click', () => executeTakeProfit(20.0));
 }
 
+function renderPassiveAbilityState(isActive, lotSize) {
+    const btnPassiveToggle = document.getElementById('btnPassiveToggle');
+    const passiveToggleTxt = document.getElementById('passiveToggleTxt');
+
+    if (btnPassiveToggle && passiveToggleTxt) {
+        if (isActive) {
+            btnPassiveToggle.className = "passive-toggle-btn on";
+            passiveToggleTxt.innerText = `PASSIVE: ACTIVE (${lotSize || 0.33} L)`;
+        } else {
+            btnPassiveToggle.className = "passive-toggle-btn off";
+            passiveToggleTxt.innerText = "PASSIVE: OFF";
+        }
+    }
+}
+
 async function fetchPortfolioSummary() {
     try {
         const res = await fetch(`/api/summary?t=${Date.now()}`, {
@@ -95,10 +132,15 @@ async function fetchPortfolioSummary() {
 function renderData() {
     if (!liveSummaryData) return;
 
-    const { account, openPnLByInstrument, metrics, stochastics, openPositions } = liveSummaryData;
+    const { account, openPnLByInstrument, metrics, stochastics, openPositions, passiveAbility } = liveSummaryData;
 
     const nasMetric = metrics['NAS100'] || { pnl: 0, total: 0, wins: 0, losses: 0, winRate: 0, profitFactor: 0, lots: 0 };
     const overallMetric = metrics['OVERALL'] || { pnl: 0, total: 0, wins: 0, losses: 0, winRate: 0, profitFactor: 0 };
+
+    // 0. Passive Ability Button State
+    if (passiveAbility) {
+        renderPassiveAbilityState(passiveAbility.active, passiveAbility.lotSize);
+    }
 
     // 1. HP / Account Equity
     document.getElementById('cardEquityHp').innerText = `$${account.equity.toFixed(2)}`;
@@ -235,7 +277,7 @@ function renderData() {
         }
     }
 
-    // --- 4. Move 3: 5m REAL-TIME STOCHASTICS DISPLAY (Fast & Heavy) ---
+    // --- 4. Move 4: 5m REAL-TIME STOCHASTICS DISPLAY (Fast & Heavy) ---
     if (stochastics) {
         const sFast = stochastics.stoch_fast || stochastics.stoch_7_3_3 || { d: 35.0, status: "NEUTRAL", class: "neutral" };
         const sHeavy = stochastics.stoch_heavy || stochastics.stoch_40_1_4 || { d: 44.6, status: "NEUTRAL", class: "neutral" };
@@ -257,12 +299,12 @@ function renderData() {
         }
     }
 
-    // 5. Move 4: NAS100 Cumulative Realized PnL
+    // 5. Move 5: NAS100 Cumulative Realized PnL
     const nasTotalPnLEl = document.getElementById('cardTotalPnL');
     nasTotalPnLEl.innerText = `${nasMetric.pnl >= 0 ? '+' : ''}$${nasMetric.pnl.toFixed(2)}`;
     nasTotalPnLEl.className = `move-pnl ${nasMetric.pnl > 0 ? 'positive' : nasMetric.pnl < 0 ? 'negative' : 'neutral'}`;
 
-    // 6. Move 5: NAS100 Win Rate & Record
+    // 6. Move 6: NAS100 Win Rate & Record
     document.getElementById('cardWinRate').innerText = `${nasMetric.winRate.toFixed(1)}%`;
 
     // 7. Stat Pills: Balance, Profit Factor, Retreat Fee (-$1 / LOT)

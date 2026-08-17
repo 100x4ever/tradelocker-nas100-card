@@ -7,6 +7,7 @@ import ssl
 import os
 import mimetypes
 import time
+import math
 import threading
 
 PORT = int(os.environ.get("PORT", 8000))
@@ -27,7 +28,9 @@ session_config = {
     "token": None,
     "token_time": 0,
     "acc_id": None,
-    "acc_num": None
+    "acc_num": None,
+    "passive_ability": False,
+    "passive_lot_size": 0.33
 }
 
 # Cache for static metadata (TTL = 60s)
@@ -55,6 +58,7 @@ bars_cache = {
 
 # Track auto-triggered highest SL level for each position ID
 highest_sl_locked = {}
+last_passive_entry_time = 0
 
 def get_jwt_token():
     """Authenticate and fetch a fresh TradeLocker JWT token."""
@@ -97,6 +101,45 @@ def get_jwt_token():
 
         print(f"[{time.strftime('%H:%M:%S')}] TradeLocker Auth Success! accId={session_config['acc_id']}, accNum={session_config['acc_num']}")
         return token
+
+def calc_wma(data, period):
+    if len(data) < period:
+        return data[-1] if data else 0.0
+    sub = data[-period:]
+    weights = list(range(1, period + 1))
+    return sum(s * w for s, w in zip(sub, weights)) / sum(weights)
+
+def calc_hma(bars, period=49):
+    closes = [b["c"] for b in bars]
+    if len(closes) < period:
+        return closes[-1] if closes else 0.0
+    half_p = int(period / 2)
+    sqrt_p = int(math.sqrt(period))
+
+    diff_series = []
+    for i in range(len(closes)):
+        if i < period - 1:
+            diff_series.append(0.0)
+            continue
+        sub_closes = closes[:i+1]
+        wma_half = calc_wma(sub_closes, half_p)
+        wma_full = calc_wma(sub_closes, period)
+        diff_series.append(2.0 * wma_half - wma_full)
+
+    return calc_wma(diff_series, sqrt_p)
+
+def calc_supertrend(bars, period=6, multiplier=1.0):
+    if len(bars) < period + 1:
+        return bars[-1]["c"], bars[-1]["c"]
+    trs = []
+    for i in range(1, len(bars)):
+        h, l, prev_c = bars[i]["h"], bars[i]["l"], bars[i-1]["c"]
+        tr = max(h - l, abs(h - prev_c), abs(l - prev_c))
+        trs.append(tr)
+    atr = sum(trs[-period:]) / period
+    curr_b = bars[-1]
+    hl2 = (curr_b["h"] + curr_b["l"]) / 2.0
+    return hl2 - multiplier * atr, hl2 + multiplier * atr
 
 def calculate_stochastic(bars, k_period, k_slowing, d_smoothing):
     if not bars or len(bars) < k_period:
@@ -419,9 +462,110 @@ def check_and_apply_auto_stoploss(open_positions, nas_open_pnl):
             if ok:
                 highest_sl_locked[p_id] = -10.0
 
+def place_passive_ability_order(side):
+    """Execute automated entry for PASSIVE ABILITY with exactly 0.33 lots."""
+    global last_passive_entry_time
+    now = time.time()
+    if (now - last_passive_entry_time) < 300: # 5 min cooldown between entries
+        return False, "Cooldown active"
+
+    env = session_config["environment"]
+    base_url = f"https://{env}.tradelocker.com/backend-api"
+
+    token = session_config["token"]
+    if not token:
+        token = get_jwt_token()
+
+    acc_id = session_config["acc_id"] or "814241"
+    acc_num = session_config["acc_num"] or "18"
+
+    headers = {
+        'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'application/json',
+        'Authorization': f"Bearer {token}",
+        'accNum': str(acc_num)
+    }
+
+    payload = json.dumps({
+        "tradableInstrumentId": 3884,
+        "routeId": 509043,
+        "qty": session_config.get("passive_lot_size", 0.33),
+        "side": side.lower(),
+        "type": "market"
+    }).encode('utf-8')
+
+    url = f"{base_url}/trade/accounts/{acc_id}/orders"
+    try:
+        req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
+        with urllib.request.urlopen(req, context=ctx) as resp:
+            res = json.loads(resp.read().decode('utf-8'))
+            print(f"[{time.strftime('%H:%M:%S')}] ⚡ PASSIVE ABILITY TRIGGERED! Executed {side.upper()} order for 0.33 lots NAS100!")
+            last_passive_entry_time = now
+            live_cache["data"] = None
+            live_cache["last_fetch"] = 0
+            return True, f"Placed {side.upper()} order for 0.33 lots"
+    except Exception as e:
+        print("Error executing passive ability order:", e)
+        return False, str(e)
+
+def check_and_apply_passive_ability(open_positions):
+    """
+    Evaluates 5m Technical Confluence (Stochastics %D, Supertrend, HMA 49, Candlestick Patterns)
+    STRICTLY ENFORCING ONLY 1 OPEN TRADE AT A TIME (len(open_positions) == 0).
+    """
+    if not session_config.get("passive_ability"):
+        return
+
+    if len(open_positions) > 0:
+        return # Max 1 open trade constraint enforced!
+
+    bars = bars_cache.get("bars", [])
+    if len(bars) < 50:
+        return
+
+    stoch_fast = calculate_stochastic(bars, 7, 3, 3)
+    stoch_d = stoch_fast.get("d", 50.0)
+
+    hma49 = calc_hma(bars, 49)
+    st1_lower, st1_upper = calc_supertrend(bars, 6, 1.0)
+    st2_lower, st2_upper = calc_supertrend(bars, 12, 2.0)
+
+    b0 = bars[-1]
+    b1 = bars[-2]
+    b2 = bars[-3]
+
+    curr_close = b0["c"]
+
+    # Candlestick triggers
+    is_bull_engulf = (b1["c"] < b1["o"]) and (b0["c"] > b0["o"]) and (b0["c"] >= b1["o"]) and (b0["o"] <= b1["c"])
+    is_bear_engulf = (b1["c"] > b1["o"]) and (b0["c"] < b0["o"]) and (b0["c"] <= b1["o"]) and (b0["o"] >= b1["c"])
+
+    is_tweezer_bottom = (b1["c"] < b1["o"]) and (b0["c"] > b0["o"]) and (abs(b0["l"] - b1["l"]) <= 3.0)
+    is_tweezer_top = (b1["c"] > b1["o"]) and (b0["c"] < b0["o"]) and (abs(b0["h"] - b1["h"]) <= 3.0)
+
+    is_morning_star = (b2["c"] < b2["o"]) and (abs(b1["c"] - b1["o"]) <= 0.3 * abs(b2["o"] - b2["c"])) and (b0["c"] > b0["o"])
+    is_evening_star = (b2["c"] > b2["o"]) and (abs(b1["c"] - b1["o"]) <= 0.3 * abs(b2["c"] - b2["o"])) and (b0["c"] < b0["o"])
+
+    # Bullish Confluence
+    bull_location = (stoch_d < 30.0) or (curr_close <= st1_lower) or (curr_close <= st2_lower) or (abs(curr_close - hma49) <= 15.0 and curr_close >= hma49)
+    bull_trigger = is_bull_engulf or is_tweezer_bottom or is_morning_star
+
+    # Bearish Confluence
+    bear_location = (stoch_d > 70.0) or (curr_close >= st1_upper) or (curr_close >= st2_upper) or (abs(curr_close - hma49) <= 15.0 and curr_close <= hma49)
+    bear_trigger = is_bear_engulf or is_tweezer_top or is_evening_star
+
+    if bull_location and bull_trigger:
+        print(f"[{time.strftime('%H:%M:%S')}] 🟢 PASSIVE ABILITY: BULLISH 5m Confluence Detected! Placing BUY 0.33 lots...")
+        place_passive_ability_order("buy")
+
+    elif bear_location and bear_trigger:
+        print(f"[{time.strftime('%H:%M:%S')}] 🔴 PASSIVE ABILITY: BEARISH 5m Confluence Detected! Placing SELL 0.33 lots...")
+        place_passive_ability_order("sell")
+
 def background_auto_sl_monitor_thread():
-    """Background daemon thread running 24/7 on Railway server to manage Stop Losses automatically."""
-    print(f"[{time.strftime('%H:%M:%S')}] Background 24/7 Auto Stop Loss Guardian Ladder Running!")
+    """Background daemon thread running 24/7 on Railway server to manage Stop Losses and Passive Ability entries."""
+    print(f"[{time.strftime('%H:%M:%S')}] Background 24/7 Auto Guardian & Passive Ability Engine Running!")
     while True:
         try:
             time.sleep(4.0)
@@ -552,6 +696,9 @@ def get_tradelocker_data(retry_on_401=True):
         # AUTOMATIC 24/7 AUTO STOP LOSS LADDER GUARDIAN
         check_and_apply_auto_stoploss(open_positions, open_pnl_by_inst["NAS100"])
 
+        # PASSIVE ABILITY AUTO-ENTRY ENGINE (STRICTLY 1 OPEN TRADE AT A TIME)
+        check_and_apply_passive_ability(open_positions)
+
         metrics = meta_cache.get("metrics") or {
             "OVERALL": {"pnl": 0.0, "winRate": 0.0, "profitFactor": 0.0, "total": 0, "wins": 0, "losses": 0, "lots": 0.0},
             "NAS100": {"pnl": 0.0, "winRate": 0.0, "profitFactor": 0.0, "total": 0, "wins": 0, "losses": 0, "lots": 0.0}
@@ -568,6 +715,10 @@ def get_tradelocker_data(retry_on_401=True):
                 "openPnL": round(open_net_pnl, 2),
                 "positionsCount": len(open_positions),
                 "serverTime": int(time.time())
+            },
+            "passiveAbility": {
+                "active": session_config.get("passive_ability", False),
+                "lotSize": session_config.get("passive_lot_size", 0.33)
             },
             "openPnLByInstrument": open_pnl_by_inst,
             "metrics": metrics,
@@ -849,6 +1000,10 @@ def get_mock_summary_data():
             "positionsCount": 0,
             "serverTime": int(time.time())
         },
+        "passiveAbility": {
+            "active": session_config.get("passive_ability", False),
+            "lotSize": session_config.get("passive_lot_size", 0.33)
+        },
         "openPnLByInstrument": {
             "NAS100": 0.00,
             "EURUSD": 0.00,
@@ -902,7 +1057,27 @@ class TradeLockerHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         body_bytes = self.rfile.read(content_len) if content_len > 0 else b'{}'
         payload = json.loads(body_bytes.decode('utf-8')) if body_bytes else {}
 
-        if self.path == '/api/set-trailing-stop':
+        if self.path == '/api/toggle-passive-ability':
+            active_state = payload.get("active")
+            if active_state is None:
+                session_config["passive_ability"] = not session_config.get("passive_ability", False)
+            else:
+                session_config["passive_ability"] = bool(active_state)
+            
+            live_cache["data"] = None
+            print(f"[{time.strftime('%H:%M:%S')}] ⚡ PASSIVE ABILITY Toggled -> {session_config['passive_ability']} (0.33 lots, Max 1 Trade)")
+
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "ok",
+                "active": session_config["passive_ability"],
+                "lotSize": session_config["passive_lot_size"],
+                "message": f"Passive Ability is now {'ACTIVE (0.33 L)' if session_config['passive_ability'] else 'OFF'}"
+            }).encode('utf-8'))
+
+        elif self.path == '/api/set-trailing-stop':
             pos_id = payload.get("positionId", "all")
             offset = payload.get("trailingOffset", 10.0)
             res = set_position_trailing_stop(pos_id, offset)
@@ -957,7 +1132,7 @@ class TradeLockerHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             else:
                 self.wfile.write(json.dumps({"status": "error", "message": "Failed to connect to TradeLocker"}).encode('utf-8'))
 
-# Launch 24/7 background daemon monitor thread for auto SL life-cycle management
+# Launch 24/7 background daemon monitor thread for auto SL life-cycle management and passive ability engine
 bg_thread = threading.Thread(target=background_auto_sl_monitor_thread, daemon=True)
 bg_thread.start()
 

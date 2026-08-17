@@ -359,6 +359,62 @@ body {
     border: 1px solid #475569;
 }
 
+/* PASSIVE ABILITY TOGGLE BUTTON STYLING */
+.passive-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.passive-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 800;
+    padding: 3px 10px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1.5px solid #475569;
+    background: rgba(30, 41, 59, 0.8);
+    color: #94a3b8;
+}
+
+.passive-toggle-btn.off {
+    background: rgba(30, 41, 59, 0.8);
+    border-color: #475569;
+    color: #94a3b8;
+}
+
+.passive-toggle-btn.on {
+    background: linear-gradient(135deg, #065f46 0%, #047857 100%);
+    border-color: #34d399;
+    color: #ffffff;
+    box-shadow: 0 0 12px rgba(52, 211, 153, 0.5);
+    animation: activePassivePulse 2s infinite alternate;
+}
+
+.passive-status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #64748b;
+    display: inline-block;
+}
+
+.passive-toggle-btn.on .passive-status-dot {
+    background: #34d399;
+    box-shadow: 0 0 6px #34d399;
+}
+
+@keyframes activePassivePulse {
+    0% { box-shadow: 0 0 6px rgba(52, 211, 153, 0.4); }
+    100% { box-shadow: 0 0 16px rgba(52, 211, 153, 0.8); }
+}
+
 /* DIMENSION PORTAL (OPEN TRADELOCKER) STYLING */
 .portal-link-btn {
     display: flex;
