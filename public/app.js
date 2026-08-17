@@ -135,7 +135,7 @@ function renderData() {
             const side = (p.side || 'buy').toLowerCase();
             const qty = parseFloat(p.qty || 0.01);
             const entry = parseFloat(p.avgPrice || 0);
-            const tp = p.takeProfit ? parseFloat(p.takeProfit) : null;
+            const tp = p.takeProfitPrice ? parseFloat(p.takeProfitPrice) : null;
 
             if (tp && entry > 0 && qty > 0) {
                 const diff = side === 'buy' ? (tp - entry) * qty : (entry - tp) * qty;
@@ -146,7 +146,7 @@ function renderData() {
         });
     }
 
-    // --- DEFENSIVE SHIELD: SHOW ONLY THE 'SHIELD POWER' READOUT (ACTIVE STOPLOSS) ---
+    // --- DEFENSIVE SHIELD: SHOW ONLY THE 'SHIELD POWER' READOUT (ACTIVE STOPLOSS AMOUNT) ---
     const shieldPowerEl = document.getElementById('cardShieldPower');
     if (shieldPowerEl) {
         if (!hasOpenPositions) {
@@ -161,24 +161,32 @@ function renderData() {
             if (p.trailingOffset) {
                 shieldPowerEl.innerText = "🐾 STALKING";
                 shieldPowerEl.className = "shield-power-val positive";
-            } else if (p.stopLoss && entry > 0 && qty > 0) {
-                const slPrice = parseFloat(p.stopLoss);
-                const diff = side === 'buy' ? (slPrice - entry) * qty : (entry - slPrice) * qty;
+            } else {
+                let diff = null;
 
-                if (Math.abs(diff) < 0.25) {
-                    shieldPowerEl.innerText = "🛡️ BE ($0.00)";
-                    shieldPowerEl.className = "shield-power-val positive";
-                } else if (diff > 0) {
-                    shieldPowerEl.innerText = `🛡️ +$${diff.toFixed(2)}`;
-                    shieldPowerEl.className = "shield-power-val positive";
+                if (p.stopLossAmount !== undefined && p.stopLossAmount !== null) {
+                    diff = parseFloat(p.stopLossAmount);
+                } else if (p.stopLossPrice && entry > 0 && qty > 0) {
+                    const slPrice = parseFloat(p.stopLossPrice);
+                    diff = side === 'buy' ? (slPrice - entry) * qty : (entry - slPrice) * qty;
+                }
+
+                if (diff !== null && !isNaN(diff)) {
+                    const rounded = Math.round(diff);
+                    if (Math.abs(diff) < 0.25) {
+                        shieldPowerEl.innerText = "🛡️ BE ($0)";
+                        shieldPowerEl.className = "shield-power-val positive";
+                    } else if (diff > 0) {
+                        shieldPowerEl.innerText = `🛡️ +$${rounded}`;
+                        shieldPowerEl.className = "shield-power-val positive";
+                    } else {
+                        shieldPowerEl.innerText = `🛡️ -$${Math.abs(rounded)}`;
+                        shieldPowerEl.className = "shield-power-val negative";
+                    }
                 } else {
-                    shieldPowerEl.innerText = `🛡️ -$${Math.abs(diff).toFixed(2)}`;
+                    shieldPowerEl.innerText = "🛡️ -$10";
                     shieldPowerEl.className = "shield-power-val negative";
                 }
-            } else {
-                // If stop loss is currently being attached by daemon
-                shieldPowerEl.innerText = "🛡️ -$10.00";
-                shieldPowerEl.className = "shield-power-val negative";
             }
         }
     }
@@ -229,8 +237,8 @@ function renderData() {
 
     // --- 4. Move 3: 5m REAL-TIME STOCHASTICS DISPLAY (Fast & Heavy) ---
     if (stochastics) {
-        const sFast = stochastics.stoch_fast || stochastics.stoch_7_3_3 || { d: 35.0, status: 'NEUTRAL', class: 'neutral' };
-        const sHeavy = stochastics.stoch_heavy || stochastics.stoch_40_1_4 || { d: 44.6, status: 'NEUTRAL', class: 'neutral' };
+        const sFast = stochastics.stoch_fast || stochastics.stoch_7_3_3 || { d: 35.0, status: "NEUTRAL", class: "neutral" };
+        const sHeavy = stochastics.stoch_heavy || stochastics.stoch_40_1_4 || { d: 44.6, status: "NEUTRAL", class: "neutral" };
 
         const el7Val = document.getElementById('stoch7Val');
         const el7Badge = document.getElementById('stoch7Badge');

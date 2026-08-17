@@ -356,6 +356,7 @@ def execute_patch_stoploss_for_position(target_pos, loss_amount):
         req = urllib.request.Request(url, data=patch_body, headers=headers, method="PATCH")
         with urllib.request.urlopen(req, context=ctx) as resp:
             print(f"[{time.strftime('%H:%M:%S')}] SUCCESS: Set StopLoss=${sl_price} ({label}) on Position #{p_id}!")
+            highest_sl_locked[p_id] = val_amt
             live_cache["data"] = None
             live_cache["last_fetch"] = 0
             return True, f"Set {label} Stop Loss on position #{p_id}"
@@ -395,7 +396,7 @@ def check_and_apply_auto_stoploss(open_positions, nas_open_pnl):
             continue
         p_unrealized = float(pos.get("unrealizedPl") or 0.0)
         effective_pnl = max(nas_open_pnl, p_unrealized)
-        has_sl = pos.get("stopLoss") is not None and str(pos.get("stopLoss")).strip() != ""
+        has_sl = pos.get("stopLossPrice") is not None or pos.get("stopLoss") is not None
 
         current_locked = highest_sl_locked.get(p_id, None)
 
@@ -471,7 +472,31 @@ def get_tradelocker_data(retry_on_401=True):
         with urllib.request.urlopen(req, context=ctx) as resp:
             positions_data = json.loads(resp.read().decode('utf-8')).get("d", {}).get("positions", [])
 
-        # 3. Real-Time Stochastics Calculation
+        # 3. Active Pending Orders (To resolve exact Stop Loss / Take Profit price levels!)
+        sl_tp_map = {}
+        try:
+            req_ord = urllib.request.Request(f"{base_url}/trade/accounts/{acc_id}/orders", headers=auth_headers)
+            with urllib.request.urlopen(req_ord, context=ctx) as resp_ord:
+                orders_data = json.loads(resp_ord.read().decode('utf-8')).get("d", {}).get("orders", [])
+                orders_cols = [c["id"] for c in config.get("ordersConfig", {}).get("columns", [])] if config.get("ordersConfig") else []
+                for o in orders_data:
+                    o_dict = dict(zip(orders_cols, o)) if orders_cols else {}
+                    o_id = str(o_dict.get("id") or (o[0] if len(o)>0 else ""))
+                    stop_p = o_dict.get("stopPrice") or (o[10] if len(o)>10 else None)
+                    limit_p = o_dict.get("price") or (o[9] if len(o)>9 else None)
+                    
+                    price_val = None
+                    if stop_p and str(stop_p) != "None":
+                        price_val = float(stop_p)
+                    elif limit_p and str(limit_p) != "None":
+                        price_val = float(limit_p)
+
+                    if o_id and price_val is not None:
+                        sl_tp_map[o_id] = price_val
+        except Exception as e:
+            print("Orders mapping exception:", e)
+
+        # 4. Real-Time Stochastics Calculation
         stochastics = fetch_live_stochastics(auth_headers, base_url)
 
         # Map Account State
@@ -496,9 +521,13 @@ def get_tradelocker_data(retry_on_401=True):
             qty = float(p_dict.get("qty") or (pos[4] if len(pos)>4 else 0.01))
             entry_price = float(p_dict.get("avgPrice") or (pos[5] if len(pos)>5 else 0.0))
             unrealized = float(p_dict.get("unrealizedPl") or (pos[9] if len(pos)>9 else 0.0))
-            stop_loss = p_dict.get("stopLossId") or p_dict.get("stopLoss") or (pos[7] if len(pos)>7 else None)
-            take_profit = p_dict.get("takeProfitId") or p_dict.get("takeProfit") or (pos[8] if len(pos)>8 else None)
+            sl_id = str(p_dict.get("stopLossId") or (pos[6] if len(pos)>6 else ""))
+            tp_id = str(p_dict.get("takeProfitId") or (pos[7] if len(pos)>7 else ""))
             trailing_offset = p_dict.get("trailingOffset")
+
+            # Resolve actual Price Levels for SL & TP from pending orders map
+            stop_loss_price = sl_tp_map.get(sl_id)
+            take_profit_price = sl_tp_map.get(tp_id)
 
             p_dict["id"] = p_id
             p_dict["instrumentName"] = inst_name
@@ -506,8 +535,9 @@ def get_tradelocker_data(retry_on_401=True):
             p_dict["qty"] = qty
             p_dict["avgPrice"] = entry_price
             p_dict["unrealizedPl"] = unrealized
-            p_dict["stopLoss"] = stop_loss
-            p_dict["takeProfit"] = take_profit
+            p_dict["stopLossPrice"] = stop_loss_price
+            p_dict["takeProfitPrice"] = take_profit_price
+            p_dict["stopLossAmount"] = highest_sl_locked.get(p_id)
             p_dict["trailingOffset"] = trailing_offset
 
             open_positions.append(p_dict)
@@ -720,7 +750,7 @@ def set_position_takeprofit(position_id, profit_amount):
 
         tp_price_last = tp_price
         patch_body = json.dumps({"takeProfit": tp_price}).encode('utf-8')
-        url = f"{base_url}/trade/positions/{pos_id if 'pos_id' in locals() else p_id}"
+        url = f"{base_url}/trade/positions/{p_id}"
 
         try:
             req = urllib.request.Request(url, data=patch_body, headers=auth_headers, method="PATCH")
