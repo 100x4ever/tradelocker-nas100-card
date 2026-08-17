@@ -53,7 +53,7 @@ bars_cache = {
     "bars": []
 }
 
-# Track auto-triggered SLs for position IDs
+# Track auto-triggered SLs for position IDs to prevent duplicate calls
 auto_sl_initial_10 = set()
 auto_sl_triggered_5 = set()
 auto_sl_triggered_15 = set()
@@ -302,40 +302,106 @@ def get_default_stochastics():
         "stoch_heavy": {"k": 44.6, "d": 44.6, "status": "NEUTRAL", "class": "neutral"}
     }
 
+def execute_patch_stoploss_for_position(target_pos, loss_amount):
+    """Execute direct HTTP PATCH /trade/positions/{p_id} to set Stop Loss without calling get_tradelocker_data()."""
+    p_id = str(target_pos.get("id") or target_pos.get("positionId"))
+    side = str(target_pos.get("side", "buy")).lower()
+    qty = float(target_pos.get("qty") or 0.01)
+    entry_p = float(target_pos.get("avgPrice") or 0.0)
+
+    if not p_id or entry_p <= 0 or qty <= 0:
+        return False, "Invalid position details"
+
+    try:
+        val_amt = float(loss_amount)
+    except (ValueError, TypeError):
+        val_amt = 0.0
+
+    if val_amt == 0.0 or str(loss_amount).lower() == "be":
+        sl_price = round(entry_p, 2)
+        label = "Break Even"
+    elif val_amt > 0:
+        if side == "buy":
+            sl_price = round(entry_p + (val_amt / qty), 2)
+        else:
+            sl_price = round(entry_p - (val_amt / qty), 2)
+        label = f"+${val_amt:.2f}"
+    else:
+        abs_val = abs(val_amt)
+        if side == "buy":
+            sl_price = round(entry_p - (abs_val / qty), 2)
+        else:
+            sl_price = round(entry_p + (abs_val / qty), 2)
+        label = f"-${abs_val:.2f}"
+
+    env = session_config["environment"]
+    base_url = f"https://{env}.tradelocker.com/backend-api"
+
+    token = session_config["token"]
+    if not token:
+        token = get_jwt_token()
+
+    acc_num = session_config["acc_num"] or "18"
+
+    headers = {
+        'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'application/json',
+        'Authorization': f"Bearer {token}",
+        'accNum': str(acc_num)
+    }
+
+    patch_body = json.dumps({"stopLoss": sl_price}).encode('utf-8')
+    url = f"{base_url}/trade/positions/{p_id}"
+
+    try:
+        req = urllib.request.Request(url, data=patch_body, headers=headers, method="PATCH")
+        with urllib.request.urlopen(req, context=ctx) as resp:
+            print(f"[{time.strftime('%H:%M:%S')}] SUCCESS: Set StopLoss=${sl_price} ({label}) on Position #{p_id}!")
+            live_cache["data"] = None
+            live_cache["last_fetch"] = 0
+            return True, f"Set {label} Stop Loss on position #{p_id}"
+    except Exception as e:
+        print(f"Error executing patch stop loss on position {p_id}: {e}")
+        return False, str(e)
+
 def check_and_apply_auto_stoploss(open_positions, nas_open_pnl):
     """
-    Automatic 24/7 background Stop Loss Life-Cycle Management:
-    1. New position placed -> Automatically attach -$10.00 Stop Loss immediately!
-    2. At +$10.00 PnL -> Auto-move Stop Loss up to +$5.00 Protective Stop!
-    3. At +$20.00 PnL -> Auto-move Stop Loss up to +$15.00 Protective Stop!
+    Automatic 24/7 background Stop Loss Life-Cycle Guardian:
+    1. New position placed -> Automatically attach -$10.00 initial Stop Loss immediately!
+    2. PnL >= +$10.00 -> Auto-move Stop Loss up to +$5.00 Protective Stop!
+    3. PnL >= +$20.00 -> Auto-move Stop Loss up to +$15.00 Protective Stop!
     """
     for pos in open_positions:
         p_id = str(pos.get("id") or pos.get("positionId"))
         if not p_id:
             continue
         p_unrealized = float(pos.get("unrealizedPl") or 0.0)
-        has_sl = pos.get("stopLoss") is not None
+        has_sl = pos.get("stopLoss") is not None and str(pos.get("stopLoss")).strip() != ""
 
         # 1. Tier 2: PnL >= $20.00 -> Move Stop Loss up to +$15.00
         if (nas_open_pnl >= 20.0 or p_unrealized >= 20.0) and p_id not in auto_sl_triggered_15:
             print(f"[{time.strftime('%H:%M:%S')}] [AUTO SL TIER 2] PnL reached +$20.00+ (Total: +${nas_open_pnl:.2f}, Pos: +${p_unrealized:.2f})! Auto-moving Stop Loss up to +$15.00 on position #{p_id}")
-            auto_sl_triggered_15.add(p_id)
-            auto_sl_triggered_5.add(p_id)
-            auto_sl_initial_10.add(p_id)
-            set_position_stoploss(p_id, 15.0)
+            ok, msg = execute_patch_stoploss_for_position(pos, 15.0)
+            if ok:
+                auto_sl_triggered_15.add(p_id)
+                auto_sl_triggered_5.add(p_id)
+                auto_sl_initial_10.add(p_id)
 
         # 2. Tier 1: PnL >= $10.00 -> Move Stop Loss up to +$5.00
         elif (nas_open_pnl >= 10.0 or p_unrealized >= 10.0) and p_id not in auto_sl_triggered_5:
             print(f"[{time.strftime('%H:%M:%S')}] [AUTO SL TIER 1] PnL reached +$10.00+ (Total: +${nas_open_pnl:.2f}, Pos: +${p_unrealized:.2f})! Auto-locking +$5.00 Stop Loss on position #{p_id}")
-            auto_sl_triggered_5.add(p_id)
-            auto_sl_initial_10.add(p_id)
-            set_position_stoploss(p_id, 5.0)
+            ok, msg = execute_patch_stoploss_for_position(pos, 5.0)
+            if ok:
+                auto_sl_triggered_5.add(p_id)
+                auto_sl_initial_10.add(p_id)
 
         # 3. Initial Placement: New position without SL -> Auto-attach -$10.00 Stop Loss immediately!
         elif not has_sl and p_id not in auto_sl_initial_10:
             print(f"[{time.strftime('%H:%M:%S')}] [AUTO SL INITIAL] New Position #{p_id} detected! Auto-attaching -$10.00 initial Stop Loss risk cap!")
-            auto_sl_initial_10.add(p_id)
-            set_position_stoploss(p_id, -10.0)
+            ok, msg = execute_patch_stoploss_for_position(pos, -10.0)
+            if ok:
+                auto_sl_initial_10.add(p_id)
 
 def background_auto_sl_monitor_thread():
     """Background daemon thread running 24/7 on Railway server to manage Stop Losses automatically."""
@@ -481,7 +547,7 @@ def get_tradelocker_data(retry_on_401=True):
         return live_cache["data"] or get_mock_summary_data()
 
 def set_position_stoploss(position_id, loss_amount):
-    """Calculate exact Stop Loss price level for Break Even, positive lock (+$5 or +$15), or -$5 / -$10 loss."""
+    """Handler for user-triggered SL API requests via button click."""
     data = get_tradelocker_data()
     positions = data.get("openPositions", [])
 
@@ -498,80 +564,19 @@ def set_position_stoploss(position_id, loss_amount):
     if not target_positions:
         target_positions = positions
 
-    try:
-        val_amt = float(loss_amount)
-    except (ValueError, TypeError):
-        val_amt = 0.0
-
-    env = session_config["environment"]
-    base_url = f"https://{env}.tradelocker.com/backend-api"
-
-    headers = {
-        'Content-Type': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0 Safari/537.36',
-        'Accept': 'application/json'
-    }
-
-    token = session_config["token"]
-    if not token:
-        token = get_jwt_token()
-
-    acc_num = session_config["acc_num"] or "18"
-
-    auth_headers = dict(headers)
-    auth_headers["Authorization"] = f"Bearer {token}"
-    auth_headers["accNum"] = str(acc_num)
-
     updated_count = 0
     sl_price_last = 0.0
 
     for target_pos in target_positions:
-        p_id = target_pos.get("id") or target_pos.get("positionId")
-        side = str(target_pos.get("side", "buy")).lower()
-        qty = float(target_pos.get("qty") or 0.01)
-        entry_p = float(target_pos.get("avgPrice") or 0.0)
-
-        if entry_p <= 0 or qty <= 0:
-            continue
-
-        if val_amt == 0.0 or str(loss_amount).lower() == "be":
-            sl_price = round(entry_p, 2)
-            label = "Break Even"
-        elif val_amt > 0:
-            if side == "buy":
-                sl_price = round(entry_p + (val_amt / qty), 2)
-            else:
-                sl_price = round(entry_p - (val_amt / qty), 2)
-            label = f"+${val_amt:.2f}"
-        else:
-            abs_val = abs(val_amt)
-            if side == "buy":
-                sl_price = round(entry_p - (abs_val / qty), 2)
-            else:
-                sl_price = round(entry_p + (abs_val / qty), 2)
-            label = f"-${abs_val:.2f}"
-
-        sl_price_last = sl_price
-        patch_body = json.dumps({"stopLoss": sl_price}).encode('utf-8')
-        url = f"{base_url}/trade/positions/{p_id}"
-
-        try:
-            req = urllib.request.Request(url, data=patch_body, headers=auth_headers, method="PATCH")
-            with urllib.request.urlopen(req, context=ctx) as resp:
-                updated_count += 1
-                print(f"Set StopLoss=${sl_price} ({label}) on Position #{p_id} successfully!")
-        except Exception as e:
-            print(f"Error setting stop loss on position {p_id}: {e}")
-
-    live_cache["data"] = None
-    live_cache["last_fetch"] = 0
+        ok, msg = execute_patch_stoploss_for_position(target_pos, loss_amount)
+        if ok:
+            updated_count += 1
 
     if updated_count > 0:
         return {
             "status": "ok",
             "updatedCount": updated_count,
-            "stopLoss": sl_price_last,
-            "message": f"Set {label} Stop Loss on {updated_count} position(s)!"
+            "message": f"Set Stop Loss on {updated_count} position(s)!"
         }
     else:
         return {"status": "error", "message": "Failed to set Stop Loss on positions"}
