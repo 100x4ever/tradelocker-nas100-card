@@ -53,8 +53,9 @@ bars_cache = {
     "bars": []
 }
 
-# Track auto-triggered +$5 SL for position IDs to prevent duplicate calls
-auto_sl_triggered = set()
+# Track auto-triggered SLs for position IDs to prevent duplicate calls
+auto_sl_triggered_5 = set()
+auto_sl_triggered_15 = set()
 
 def get_jwt_token():
     """Authenticate and fetch a fresh TradeLocker JWT token."""
@@ -301,28 +302,33 @@ def get_default_stochastics():
     }
 
 def check_and_apply_auto_stoploss(open_positions, nas_open_pnl):
-    """Automatically set Stop Loss to +$5.00 in background whenever PnL reaches +$10.00!"""
-    # 1. Total NAS100 PnL check
-    if nas_open_pnl >= 10.0:
-        for pos in open_positions:
-            p_id = str(pos.get("id") or pos.get("positionId"))
-            if p_id and p_id not in auto_sl_triggered:
-                print(f"[{time.strftime('%H:%M:%S')}] [AUTO SL] Total PnL reached +${nas_open_pnl:.2f}! Auto-locking +$5.00 Stop Loss on position #{p_id}")
-                auto_sl_triggered.add(p_id)
-                set_position_stoploss(p_id, 5.0)
-
-    # 2. Individual position PnL check
+    """
+    Automatic 24/7 background Stop Loss progression:
+    - At +$10.00 PnL -> Auto-lock +$5.00 Stop Loss
+    - At +$20.00 PnL -> Auto-move Stop Loss up to +$15.00!
+    """
     for pos in open_positions:
         p_id = str(pos.get("id") or pos.get("positionId"))
+        if not p_id:
+            continue
         p_unrealized = float(pos.get("unrealizedPl") or 0.0)
-        if p_unrealized >= 10.0 and p_id and p_id not in auto_sl_triggered:
-            print(f"[{time.strftime('%H:%M:%S')}] [AUTO SL] Position #{p_id} PnL reached +${p_unrealized:.2f}! Auto-locking +$5.00 Stop Loss!")
-            auto_sl_triggered.add(p_id)
+
+        # Tier 2: PnL >= $20.00 -> Move Stop Loss up to +$15.00
+        if (nas_open_pnl >= 20.0 or p_unrealized >= 20.0) and p_id not in auto_sl_triggered_15:
+            print(f"[{time.strftime('%H:%M:%S')}] [AUTO SL TIER 2] PnL reached +$20.00+ (Total: +${nas_open_pnl:.2f}, Pos: +${p_unrealized:.2f})! Auto-moving Stop Loss up to +$15.00 on position #{p_id}")
+            auto_sl_triggered_15.add(p_id)
+            auto_sl_triggered_5.add(p_id)
+            set_position_stoploss(p_id, 15.0)
+
+        # Tier 1: PnL >= $10.00 -> Lock +$5.00 Stop Loss
+        elif (nas_open_pnl >= 10.0 or p_unrealized >= 10.0) and p_id not in auto_sl_triggered_5:
+            print(f"[{time.strftime('%H:%M:%S')}] [AUTO SL TIER 1] PnL reached +$10.00+ (Total: +${nas_open_pnl:.2f}, Pos: +${p_unrealized:.2f})! Auto-locking +$5.00 Stop Loss on position #{p_id}")
+            auto_sl_triggered_5.add(p_id)
             set_position_stoploss(p_id, 5.0)
 
 def background_auto_sl_monitor_thread():
-    """Background daemon thread running 24/7 on Railway server to auto-lock +$5 SL even if app/browser is closed."""
-    print(f"[{time.strftime('%H:%M:%S')}] Background 24/7 Auto +$5 Stop Loss Monitor Loop Started!")
+    """Background daemon thread running 24/7 on Railway server to auto-lock +$5 SL and +$15 SL even if app/browser is closed."""
+    print(f"[{time.strftime('%H:%M:%S')}] Background 24/7 Auto Stop Loss Monitor Loop Started (+5 SL @ $10 PnL, +15 SL @ $20 PnL)!")
     while True:
         try:
             time.sleep(4.0)
@@ -421,7 +427,7 @@ def get_tradelocker_data(retry_on_401=True):
             else:
                 open_pnl_by_inst["OTHER"] += unrealized
 
-        # AUTOMATIC 24/7 +$5 STOP LOSS TRIGGER WHEN PNL REACHES +$10 (BACKGROUND MONITORED)
+        # AUTOMATIC 24/7 AUTO STOP LOSS PROGRESSION (+5 SL @ $10 PnL, +15 SL @ $20 PnL)
         check_and_apply_auto_stoploss(open_positions, open_pnl_by_inst["NAS100"])
 
         metrics = meta_cache.get("metrics") or {
@@ -464,7 +470,7 @@ def get_tradelocker_data(retry_on_401=True):
         return live_cache["data"] or get_mock_summary_data()
 
 def set_position_stoploss(position_id, loss_amount):
-    """Calculate exact Stop Loss price level for Break Even, positive lock (+$5), or -$5 / -$10 loss."""
+    """Calculate exact Stop Loss price level for Break Even, positive lock (+$5 or +$15), or -$5 / -$10 loss."""
     data = get_tradelocker_data()
     positions = data.get("openPositions", [])
 
@@ -891,7 +897,7 @@ class TradeLockerHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             else:
                 self.wfile.write(json.dumps({"status": "error", "message": "Failed to connect to TradeLocker"}).encode('utf-8'))
 
-# Launch 24/7 background daemon monitor thread for auto +$5 SL trigger
+# Launch 24/7 background daemon monitor thread for auto +$5 SL and +$15 SL triggers
 bg_thread = threading.Thread(target=background_auto_sl_monitor_thread, daemon=True)
 bg_thread.start()
 

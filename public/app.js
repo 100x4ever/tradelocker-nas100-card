@@ -40,9 +40,10 @@ function initEventListeners() {
         });
     }
 
-    // Defensive Move: Set Break Even (BE), Positive Lock (+$5), -$5 and -$10 Stop Loss
+    // Defensive Move: Set Break Even (BE), Positive Lock (+$5, +$15), -$5 and -$10 Stop Loss
     const btnSlBe = document.getElementById('btnSlBe');
     const btnSlP5 = document.getElementById('btnSlP5');
+    const btnSlP15 = document.getElementById('btnSlP15');
     const btnSl5 = document.getElementById('btnSl5');
     const btnSl10 = document.getElementById('btnSl10');
     const btnStalk = document.getElementById('btnStalk');
@@ -96,6 +97,7 @@ function initEventListeners() {
 
         if (btnSlBe) btnSlBe.disabled = true;
         if (btnSlP5) btnSlP5.disabled = true;
+        if (btnSlP15) btnSlP15.disabled = true;
         if (btnSl5) btnSl5.disabled = true;
         if (btnSl10) btnSl10.disabled = true;
 
@@ -117,6 +119,7 @@ function initEventListeners() {
         } finally {
             if (btnSlBe) btnSlBe.disabled = false;
             if (btnSlP5) btnSlP5.disabled = false;
+            if (btnSlP15) btnSlP15.disabled = false;
             if (btnSl5) btnSl5.disabled = false;
             if (btnSl10) btnSl10.disabled = false;
         }
@@ -153,7 +156,8 @@ function initEventListeners() {
     };
 
     if (btnSlBe) btnSlBe.addEventListener('click', () => executeStopLoss(0.0));
-    if (btnSlP5) btnSlP5.addEventListener('click', () => executeStopLoss(5.0)); // Positive +$5 Profit Lock!
+    if (btnSlP5) btnSlP5.addEventListener('click', () => executeStopLoss(5.0)); // Positive +$5 Profit Lock
+    if (btnSlP15) btnSlP15.addEventListener('click', () => executeStopLoss(15.0)); // Positive +$15 Profit Lock
     if (btnSl5) btnSl5.addEventListener('click', () => executeStopLoss(-5.0));  // Negative -$5 Loss Cap
     if (btnSl10) btnSl10.addEventListener('click', () => executeStopLoss(-10.0)); // Negative -$10 Loss Cap
 
@@ -202,6 +206,7 @@ function renderData() {
     const btnCloseNow = document.getElementById('btnCloseNow');
     const btnSlBe = document.getElementById('btnSlBe');
     const btnSlP5 = document.getElementById('btnSlP5');
+    const btnSlP15 = document.getElementById('btnSlP15');
     const btnSl5 = document.getElementById('btnSl5');
     const btnSl10 = document.getElementById('btnSl10');
     const btnStalk = document.getElementById('btnStalk');
@@ -215,6 +220,7 @@ function renderData() {
     if (btnCloseNow) btnCloseNow.disabled = !hasOpenPositions;
     if (btnSlBe) btnSlBe.disabled = !hasOpenPositions;
     if (btnSlP5) btnSlP5.disabled = !hasOpenPositions;
+    if (btnSlP15) btnSlP15.disabled = !hasOpenPositions;
     if (btnSl5) btnSl5.disabled = !hasOpenPositions;
     if (btnSl10) btnSl10.disabled = !hasOpenPositions;
 
@@ -223,9 +229,8 @@ function renderData() {
     if (btnTp20) btnTp20.disabled = !hasOpenPositions;
 
     // --- SHINY GLOWING BORDER HIGHLIGHTING FOR ACTIVE TP AND SL BUTTONS ---
-    // Reset all glow classes
     [btnTp10, btnTp15, btnTp20].forEach(b => b && b.classList.remove('active-tp-glow'));
-    [btnSlBe, btnSlP5, btnSl5, btnSl10, btnStalk].forEach(b => b && b.classList.remove('active-sl-glow'));
+    [btnSlBe, btnSlP5, btnSlP15, btnSl5, btnSl10, btnStalk].forEach(b => b && b.classList.remove('active-sl-glow'));
 
     if (hasOpenPositions) {
         nasPositions.forEach(p => {
@@ -248,6 +253,7 @@ function renderData() {
                 const diff = side === 'buy' ? (sl - entry) * qty : (entry - sl) * qty;
                 if (Math.abs(diff - 0.0) < 0.5 && btnSlBe) btnSlBe.classList.add('active-sl-glow');
                 if (Math.abs(diff - 5.0) < 1.2 && btnSlP5) btnSlP5.classList.add('active-sl-glow');
+                if (Math.abs(diff - 15.0) < 1.2 && btnSlP15) btnSlP15.classList.add('active-sl-glow');
                 if (Math.abs(diff - (-5.0)) < 1.2 && btnSl5) btnSl5.classList.add('active-sl-glow');
                 if (Math.abs(diff - (-10.0)) < 1.2 && btnSl10) btnSl10.classList.add('active-sl-glow');
             }
