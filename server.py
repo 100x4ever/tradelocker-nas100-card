@@ -47,10 +47,16 @@ live_cache = {
     "data": None
 }
 
-# 5m Bars cache for real-time stochastic calculation (TTL = 2.0s)
+# 5m Bars cache for real-time stochastic calculation (TTL = 60s)
 bars_cache = {
     "last_fetch": 0,
     "bars": []
+}
+
+# Active orders cache for SL/TP price mapping (TTL = 5.0s)
+orders_cache = {
+    "last_fetch": 0,
+    "sl_tp_map": {}
 }
 
 # Track auto-triggered highest SL level for each position ID
@@ -187,10 +193,12 @@ def fetch_live_stochastics(auth_headers, base_url):
     }
 
 def refresh_metadata(auth_headers, base_url, acc_id):
-    """Fetch heavy metadata (config, instruments, trade history) - cached for 60s."""
+    """Fetch heavy metadata (config, instruments, trade history) - cached for 120s."""
     now = time.time()
-    if meta_cache["config"] and (now - meta_cache["last_fetch"]) < 60:
+    if meta_cache["config"] and (now - meta_cache["last_fetch"]) < 120:
         return
+
+    meta_cache["last_fetch"] = now
 
     try:
         req = urllib.request.Request(f"{base_url}/trade/config", headers=auth_headers)
@@ -489,29 +497,34 @@ def get_tradelocker_data(retry_on_401=True):
         with urllib.request.urlopen(req, context=ctx) as resp:
             positions_data = json.loads(resp.read().decode('utf-8')).get("d", {}).get("positions", [])
 
-        # 3. Active Pending Orders (To resolve exact Stop Loss / Take Profit price levels!)
-        sl_tp_map = {}
-        try:
-            req_ord = urllib.request.Request(f"{base_url}/trade/accounts/{acc_id}/orders", headers=auth_headers)
-            with urllib.request.urlopen(req_ord, context=ctx) as resp_ord:
-                orders_data = json.loads(resp_ord.read().decode('utf-8')).get("d", {}).get("orders", [])
-                orders_cols = [c["id"] for c in config.get("ordersConfig", {}).get("columns", [])] if config.get("ordersConfig") else []
-                for o in orders_data:
-                    o_dict = dict(zip(orders_cols, o)) if orders_cols else {}
-                    o_id = str(o_dict.get("id") or (o[0] if len(o)>0 else ""))
-                    stop_p = o_dict.get("stopPrice") or (o[10] if len(o)>10 else None)
-                    limit_p = o_dict.get("price") or (o[9] if len(o)>9 else None)
-                    
-                    price_val = None
-                    if stop_p and str(stop_p) != "None":
-                        price_val = float(stop_p)
-                    elif limit_p and str(limit_p) != "None":
-                        price_val = float(limit_p)
+        # 3. Active Pending Orders (Cached for 5s to resolve SL/TP price levels)
+        if (now - orders_cache["last_fetch"]) < 5.0 and orders_cache["sl_tp_map"]:
+            sl_tp_map = orders_cache["sl_tp_map"]
+        else:
+            sl_tp_map = {}
+            try:
+                req_ord = urllib.request.Request(f"{base_url}/trade/accounts/{acc_id}/orders", headers=auth_headers)
+                with urllib.request.urlopen(req_ord, context=ctx) as resp_ord:
+                    orders_data = json.loads(resp_ord.read().decode('utf-8')).get("d", {}).get("orders", [])
+                    orders_cols = [c["id"] for c in config.get("ordersConfig", {}).get("columns", [])] if config.get("ordersConfig") else []
+                    for o in orders_data:
+                        o_dict = dict(zip(orders_cols, o)) if orders_cols else {}
+                        o_id = str(o_dict.get("id") or (o[0] if len(o)>0 else ""))
+                        stop_p = o_dict.get("stopPrice") or (o[10] if len(o)>10 else None)
+                        limit_p = o_dict.get("price") or (o[9] if len(o)>9 else None)
+                        
+                        price_val = None
+                        if stop_p and str(stop_p) != "None":
+                            price_val = float(stop_p)
+                        elif limit_p and str(limit_p) != "None":
+                            price_val = float(limit_p)
 
-                    if o_id and price_val is not None:
-                        sl_tp_map[o_id] = price_val
-        except Exception as e:
-            print("Orders mapping exception:", e)
+                        if o_id and price_val is not None:
+                            sl_tp_map[o_id] = price_val
+                    orders_cache["sl_tp_map"] = sl_tp_map
+                    orders_cache["last_fetch"] = now
+            except Exception as e:
+                print("Orders mapping exception:", e)
 
         # 4. Real-Time Stochastics Calculation & 5m Bars
         stochastics = fetch_live_stochastics(auth_headers, base_url)
@@ -606,6 +619,8 @@ def get_tradelocker_data(retry_on_401=True):
             print("Token expired. Re-authenticating...")
             session_config["token"] = None
             return get_tradelocker_data(retry_on_401=False)
+        if e.code == 429:
+            live_cache["last_fetch"] = time.time() + 5.0 # Back off for 5s on 429
         print(f"HTTP Error {e.code} in get_tradelocker_data: {e}")
         return live_cache["data"] or get_mock_summary_data()
     except Exception as e:
