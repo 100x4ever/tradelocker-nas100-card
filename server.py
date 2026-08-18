@@ -156,9 +156,9 @@ def calculate_stochastic(bars, k_period, k_slowing, d_smoothing):
     }
 
 def fetch_live_stochastics(auth_headers, base_url):
-    """Fetch 5m NAS100 bars and calculate Fast (7,3,3) & Heavy (40,1,4) in real-time."""
+    """Fetch 5m NAS100 bars (cached for 60s to prevent rate limits) and calculate Fast (7,3,3) & Heavy (40,1,4) in real-time."""
     now = time.time()
-    if bars_cache["bars"] and (now - bars_cache["last_fetch"]) < 2.0:
+    if bars_cache["bars"] and (now - bars_cache["last_fetch"]) < 60.0:
         bars = bars_cache["bars"]
     else:
         now_ms = int(now * 1000)
@@ -448,9 +448,9 @@ def background_auto_sl_monitor_thread():
             print("Background monitor error:", e)
 
 def get_tradelocker_data(retry_on_401=True):
-    """Fetch live real-time account state, positions & Stochastics on EVERY request."""
+    """Fetch live real-time account state, positions & Stochastics (cached for 1.5s to prevent rate limit bans)."""
     now = time.time()
-    if live_cache["data"] and (now - live_cache["last_fetch"]) < 2.0:
+    if live_cache["data"] and (now - live_cache["last_fetch"]) < 1.5:
         return live_cache["data"]
 
     env = session_config["environment"]
@@ -887,6 +887,29 @@ def get_mock_summary_data():
 
 class TradeLockerHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
+        if self.path in ('/stream', '/api/stream'):
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/event-stream')
+            self.send_header('Cache-Control', 'no-cache')
+            self.send_header('Connection', 'keep-alive')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+
+            try:
+                while True:
+                    if session_config["live_mode"]:
+                        data = get_tradelocker_data()
+                    else:
+                        data = get_mock_summary_data()
+
+                    msg = f"data: {json.dumps(data)}\n\n"
+                    self.wfile.write(msg.encode('utf-8'))
+                    self.wfile.flush()
+                    time.sleep(1.5)
+            except Exception as e:
+                pass
+            return
+
         if self.path.startswith('/api/summary'):
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')

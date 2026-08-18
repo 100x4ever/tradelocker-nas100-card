@@ -6,8 +6,29 @@ document.addEventListener('DOMContentLoaded', () => {
     initEventListeners();
     fetchPortfolioSummary();
 
-    // Auto refresh every 4 seconds for reliable PnL, Equity, Stochastics & 5m Candles
-    setInterval(fetchPortfolioSummary, 4000);
+    // Auto refresh fallback every 3.5 seconds
+    setInterval(fetchPortfolioSummary, 3500);
+
+    // Real-Time Server-Sent Events Stream for 1.5s Live Quote & Candle Redraws
+    try {
+        const evtSource = new EventSource('/api/stream');
+        evtSource.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data && data.account) {
+                    liveSummaryData = data;
+                    lastRefreshTimestamp = Date.now();
+                    renderData();
+                    if (isCandleModalOpen) {
+                        const bars = data.latest5mBars || data.nas_5m_bars || [];
+                        renderCandleSightModal(bars);
+                    }
+                }
+            } catch (err) {}
+        };
+    } catch (e) {
+        console.warn("SSE Stream initialization fallback:", e);
+    }
 });
 
 function initEventListeners() {
