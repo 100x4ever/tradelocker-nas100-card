@@ -128,12 +128,67 @@ async function fetchPortfolioSummary() {
     }
 }
 
-function renderCandleSightModal(bars) {
-    if (!bars || bars.length === 0) return;
+function detectCandlestickPatterns(bars) {
+    const barPatterns = [];
 
-    const canvas = document.getElementById('candleCanvas');
+    for (let i = 0; i < bars.length; i++) {
+        const curr = bars[i];
+        let stratName = "STRAT";
+
+        if (i > 0) {
+            const prev = bars[i - 1];
+            const currRange = curr.h - curr.l;
+            const prevRange = prev.h - prev.l;
+            const isBullish = curr.c >= curr.o;
+
+            if (curr.h > prev.h && curr.l < prev.l) {
+                stratName = isBullish ? "3 UP" : "3 DOWN";
+            } else if (curr.h <= prev.h && curr.l >= prev.l) {
+                stratName = "1 INSIDE";
+            } else if (curr.h > prev.h) {
+                if (curr.c < prev.h) {
+                    stratName = "FAILED 2UP";
+                } else {
+                    stratName = "2 UP";
+                }
+            } else if (curr.l < prev.l) {
+                if (curr.c > prev.l) {
+                    stratName = "FAILED 2DOWN";
+                } else {
+                    stratName = "2 DOWN";
+                }
+            }
+        } else {
+            const body = Math.abs(curr.c - curr.o);
+            const range = curr.h - curr.l;
+            const upperWick = curr.h - Math.max(curr.o, curr.c);
+            const lowerWick = Math.min(curr.o, curr.c) - curr.l;
+            const isBullish = curr.c >= curr.o;
+
+            if (range > 0 && body / range <= 0.1) {
+                stratName = "DOJI STAR";
+            } else if (lowerWick >= 2 * body && upperWick <= 0.5 * body) {
+                stratName = "HAMMER";
+            } else if (upperWick >= 2 * body && lowerWick <= 0.5 * body) {
+                stratName = "SHOOTING STAR";
+            } else {
+                stratName = isBullish ? "2 UP" : "2 DOWN";
+            }
+        }
+
+        barPatterns.push(stratName);
+    }
+
+    return { barPatterns };
+}
+
+function renderCandleSightModal(bars) {
+    const modal = document.getElementById('candleSightModal');
+    const canvas = document.getElementById('candleSightCanvas');
     const cardsGrid = document.getElementById('candleCardsGrid');
-    if (!canvas || !cardsGrid) return;
+
+    if (!modal || !canvas || !cardsGrid) return;
+    if (!bars || bars.length === 0) return;
 
     const ctx = canvas.getContext('2d');
     const width = canvas.width;
@@ -145,7 +200,7 @@ function renderCandleSightModal(bars) {
     // Draw Background Grid
     ctx.strokeStyle = 'rgba(51, 65, 85, 0.4)';
     ctx.lineWidth = 1;
-    for (let y = 30; y < height; y += 35) {
+    for (let y = 25; y < height - 20; y += 30) {
         ctx.beginPath();
         ctx.moveTo(0, y);
         ctx.lineTo(width, y);
@@ -199,11 +254,17 @@ function renderCandleSightModal(bars) {
         ctx.lineWidth = 1.5;
         ctx.strokeRect(xCenter - 14, bodyTop, 28, bodyHeight);
 
-        // Price Label Top (High)
-        ctx.fillStyle = '#cbd5e1';
-        ctx.font = '10px "JetBrains Mono", monospace';
+        // Price Label Top (High - Green)
+        ctx.fillStyle = '#00ff9d';
+        ctx.font = 'bold 10px "JetBrains Mono", monospace';
         ctx.textAlign = 'center';
-        ctx.fillText(b.h.toFixed(1), xCenter, highY - 6);
+        ctx.fillText(`H:${b.h.toFixed(1)}`, xCenter, Math.max(highY - 6, 14));
+
+        // Price Label Bottom (Low - Red)
+        ctx.fillStyle = '#ff0055';
+        ctx.font = 'bold 10px "JetBrains Mono", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(`L:${b.l.toFixed(1)}`, xCenter, Math.min(lowY + 14, height - 16));
 
         // Time / Label Bottom
         const d = new Date(b.t);
@@ -215,22 +276,21 @@ function renderCandleSightModal(bars) {
         ctx.fillText(label, xCenter, height - 6);
     });
 
-    // Populate Readout Cards (Hiding OCHL, showing clean +/- point/dollar move per candle)
+    // Populate Readout Cards (Clean Point Badges + Strat Pattern Identification)
     cardsGrid.innerHTML = '';
-    const labels = ["2 BARS AGO", "PREVIOUS", "CURRENT LIVE"];
+    const { barPatterns } = detectCandlestickPatterns(bars);
 
     bars.forEach((b, idx) => {
         const isBullish = b.c >= b.o;
         const diff = b.c - b.o;
         const diffSign = diff >= 0 ? '+' : '';
-        const d = new Date(b.t);
-        const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        const stratTag = barPatterns[idx] || "STRAT";
 
         const cardEl = document.createElement('div');
         cardEl.className = `c-card ${isBullish ? 'bullish' : 'bearish'}`;
         cardEl.innerHTML = `
-            <div class="time-lbl">${timeStr} • ${labels[idx]}</div>
             <div class="badge-val ${isBullish ? 'green' : 'red'}">${diffSign}${diff.toFixed(1)} PTS</div>
+            <div class="strat-badge">${stratTag}</div>
         `;
         cardsGrid.appendChild(cardEl);
     });

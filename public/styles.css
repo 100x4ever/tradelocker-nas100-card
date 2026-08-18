@@ -550,6 +550,19 @@ body {
     border: 1px solid rgba(252, 165, 165, 0.4);
 }
 
+.c-card .strat-badge {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    color: #fef08a;
+    background: rgba(245, 158, 11, 0.25);
+    border: 1px solid rgba(245, 158, 11, 0.45);
+}
+
 /* DIMENSION PORTAL (OPEN TRADELOCKER) STYLING */
 .portal-link-btn {
     display: flex;
