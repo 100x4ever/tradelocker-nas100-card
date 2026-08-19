@@ -62,6 +62,20 @@ orders_cache = {
 # Track auto-triggered highest SL level for each position ID
 highest_sl_locked = {}
 
+# Global thread-safe rate-limiter lock enforcing a mandatory 400ms gap between ALL TradeLocker API calls
+_last_req_lock = threading.Lock()
+_last_req_time = 0.0
+
+def tradelocker_request(req):
+    """Enforce a mandatory global minimum 400ms time gap between ALL requests to TradeLocker."""
+    global _last_req_time
+    with _last_req_lock:
+        elapsed = time.time() - _last_req_time
+        if elapsed < 0.40:
+            time.sleep(0.40 - elapsed)
+        _last_req_time = time.time()
+    return urllib.request.urlopen(req, context=ctx)
+
 def get_jwt_token():
     """Authenticate and fetch a fresh TradeLocker JWT token."""
     base_url = f"https://{session_config['environment']}.tradelocker.com/backend-api"
@@ -78,7 +92,7 @@ def get_jwt_token():
     }).encode('utf-8')
 
     req = urllib.request.Request(f"{base_url}/auth/jwt/token", data=auth_payload, headers=headers, method="POST")
-    with urllib.request.urlopen(req, context=ctx) as resp:
+    with tradelocker_request(req) as resp:
         res = json.loads(resp.read().decode('utf-8'))
         token = res["accessToken"]
         session_config["token"] = token
@@ -87,7 +101,7 @@ def get_jwt_token():
         auth_headers = dict(headers)
         auth_headers["Authorization"] = f"Bearer {token}"
         req_acc = urllib.request.Request(f"{base_url}/auth/jwt/all-accounts", headers=auth_headers)
-        with urllib.request.urlopen(req_acc, context=ctx) as r_acc:
+        with tradelocker_request(req_acc) as r_acc:
             accounts_data = json.loads(r_acc.read().decode('utf-8')).get("accounts", [])
             target_id = str(session_config["target_acc_id"])
             selected = None
@@ -172,15 +186,14 @@ def fetch_live_stochastics(auth_headers, base_url):
         history_url = f"{base_url}/trade/history?tradableInstrumentId=3884&routeId=509043&resolution=5m&from={from_ms}&to={now_ms}"
         try:
             req_h = urllib.request.Request(history_url, headers=auth_headers)
-            with urllib.request.urlopen(req_h, context=ctx) as r_h:
+            with tradelocker_request(req_h) as r_h:
                 bars = json.loads(r_h.read().decode('utf-8')).get("d", {}).get("barDetails", [])
                 if bars:
                     bars_cache["bars"] = bars
                     bars_cache["last_fetch"] = now
                 else:
                     bars = bars_cache["bars"]
-        except Exception as e:
-            print("Realtime stoch history exception:", e)
+        except Exception:
             bars = bars_cache["bars"]
 
     stoch_fast = calculate_stochastic(bars, 7, 3, 3)
@@ -203,13 +216,13 @@ def refresh_metadata(auth_headers, base_url, acc_id):
     try:
         if not meta_cache.get("config"):
             req = urllib.request.Request(f"{base_url}/trade/config", headers=auth_headers)
-            with urllib.request.urlopen(req, context=ctx) as resp:
+            with tradelocker_request(req) as resp:
                 meta_cache["config"] = json.loads(resp.read().decode('utf-8')).get("d", {})
             time.sleep(0.35)
 
         if not meta_cache.get("instruments"):
             req = urllib.request.Request(f"{base_url}/trade/accounts/{acc_id}/instruments", headers=auth_headers)
-            with urllib.request.urlopen(req, context=ctx) as resp:
+            with tradelocker_request(req) as resp:
                 instruments = json.loads(resp.read().decode('utf-8')).get("d", {}).get("instruments", [])
                 meta_cache["instruments"] = instruments
                 inst_map = {}
@@ -219,7 +232,7 @@ def refresh_metadata(auth_headers, base_url, acc_id):
             time.sleep(0.35)
 
         req = urllib.request.Request(f"{base_url}/trade/accounts/{acc_id}/ordersHistory", headers=auth_headers)
-        with urllib.request.urlopen(req, context=ctx) as resp:
+        with tradelocker_request(req) as resp:
             history = json.loads(resp.read().decode('utf-8')).get("d", {}).get("ordersHistory", [])
             meta_cache["history"] = history
 
@@ -493,22 +506,22 @@ def get_tradelocker_data(retry_on_401=True):
 
         # 1. Real-Time Account State
         req = urllib.request.Request(f"{base_url}/trade/accounts/{acc_id}/state", headers=auth_headers)
-        with urllib.request.urlopen(req, context=ctx) as resp:
+        with tradelocker_request(req) as resp:
             state_data = json.loads(resp.read().decode('utf-8')).get("d", {}).get("accountDetailsData", [])
 
         # 2. Real-Time Positions
         req = urllib.request.Request(f"{base_url}/trade/accounts/{acc_id}/positions", headers=auth_headers)
-        with urllib.request.urlopen(req, context=ctx) as resp:
+        with tradelocker_request(req) as resp:
             positions_data = json.loads(resp.read().decode('utf-8')).get("d", {}).get("positions", [])
 
-        # 3. Active Pending Orders (Cached for 5s to resolve SL/TP price levels)
-        if (now - orders_cache["last_fetch"]) < 5.0 and orders_cache["sl_tp_map"]:
+        # 3. Active Pending Orders (Cached for 10s to resolve SL/TP price levels)
+        if (now - orders_cache["last_fetch"]) < 10.0 and orders_cache["sl_tp_map"]:
             sl_tp_map = orders_cache["sl_tp_map"]
         else:
             sl_tp_map = {}
             try:
                 req_ord = urllib.request.Request(f"{base_url}/trade/accounts/{acc_id}/orders", headers=auth_headers)
-                with urllib.request.urlopen(req_ord, context=ctx) as resp_ord:
+                with tradelocker_request(req_ord) as resp_ord:
                     orders_data = json.loads(resp_ord.read().decode('utf-8')).get("d", {}).get("orders", [])
                     orders_cols = [c["id"] for c in config.get("ordersConfig", {}).get("columns", [])] if config.get("ordersConfig") else []
                     for o in orders_data:
@@ -527,8 +540,8 @@ def get_tradelocker_data(retry_on_401=True):
                             sl_tp_map[o_id] = price_val
                     orders_cache["sl_tp_map"] = sl_tp_map
                     orders_cache["last_fetch"] = now
-            except Exception as e:
-                print("Orders mapping exception:", e)
+            except Exception:
+                pass
 
         # 4. Real-Time Stochastics Calculation & 5m Bars
         stochastics = fetch_live_stochastics(auth_headers, base_url)
@@ -620,11 +633,11 @@ def get_tradelocker_data(retry_on_401=True):
 
     except urllib.error.HTTPError as e:
         if e.code == 401 and retry_on_401:
-            print("Token expired. Re-authenticating...")
             session_config["token"] = None
             return get_tradelocker_data(retry_on_401=False)
         if e.code == 429:
-            live_cache["last_fetch"] = time.time() + 5.0 # Back off for 5s on 429
+            live_cache["last_fetch"] = time.time() + 10.0 # Quiet back off for 10s on 429
+            return live_cache["data"] or get_mock_summary_data()
         print(f"HTTP Error {e.code} in get_tradelocker_data: {e}")
         return live_cache["data"] or get_mock_summary_data()
     except Exception as e:
