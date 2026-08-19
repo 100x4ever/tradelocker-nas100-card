@@ -193,26 +193,30 @@ def fetch_live_stochastics(auth_headers, base_url):
     }
 
 def refresh_metadata(auth_headers, base_url, acc_id):
-    """Fetch heavy metadata (config, instruments, trade history) - cached for 120s."""
+    """Fetch heavy metadata (config, instruments, trade history) - cached for 300s (5m) with staggered requests."""
     now = time.time()
-    if meta_cache["config"] and (now - meta_cache["last_fetch"]) < 120:
+    if meta_cache["config"] and (now - meta_cache["last_fetch"]) < 300:
         return
 
     meta_cache["last_fetch"] = now
 
     try:
-        req = urllib.request.Request(f"{base_url}/trade/config", headers=auth_headers)
-        with urllib.request.urlopen(req, context=ctx) as resp:
-            meta_cache["config"] = json.loads(resp.read().decode('utf-8')).get("d", {})
+        if not meta_cache.get("config"):
+            req = urllib.request.Request(f"{base_url}/trade/config", headers=auth_headers)
+            with urllib.request.urlopen(req, context=ctx) as resp:
+                meta_cache["config"] = json.loads(resp.read().decode('utf-8')).get("d", {})
+            time.sleep(0.35)
 
-        req = urllib.request.Request(f"{base_url}/trade/accounts/{acc_id}/instruments", headers=auth_headers)
-        with urllib.request.urlopen(req, context=ctx) as resp:
-            instruments = json.loads(resp.read().decode('utf-8')).get("d", {}).get("instruments", [])
-            meta_cache["instruments"] = instruments
-            inst_map = {}
-            for inst in instruments:
-                inst_map[str(inst.get("id"))] = inst.get("name") or inst.get("symbol")
-            meta_cache["inst_map"] = inst_map
+        if not meta_cache.get("instruments"):
+            req = urllib.request.Request(f"{base_url}/trade/accounts/{acc_id}/instruments", headers=auth_headers)
+            with urllib.request.urlopen(req, context=ctx) as resp:
+                instruments = json.loads(resp.read().decode('utf-8')).get("d", {}).get("instruments", [])
+                meta_cache["instruments"] = instruments
+                inst_map = {}
+                for inst in instruments:
+                    inst_map[str(inst.get("id"))] = inst.get("name") or inst.get("symbol")
+                meta_cache["inst_map"] = inst_map
+            time.sleep(0.35)
 
         req = urllib.request.Request(f"{base_url}/trade/accounts/{acc_id}/ordersHistory", headers=auth_headers)
         with urllib.request.urlopen(req, context=ctx) as resp:
@@ -901,6 +905,10 @@ def get_mock_summary_data():
     }
 
 class TradeLockerHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
+    def log_message(self, format, *args):
+        # Silence standard HTTP access logs to keep production logs clean & focused on auto-SL events
+        return
+
     def do_GET(self):
         if self.path in ('/stream', '/api/stream'):
             self.send_response(200)
@@ -921,24 +929,27 @@ class TradeLockerHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                     self.wfile.write(msg.encode('utf-8'))
                     self.wfile.flush()
                     time.sleep(1.5)
-            except Exception as e:
+            except (BrokenPipeError, ConnectionResetError, Exception):
                 pass
             return
 
         if self.path.startswith('/api/summary'):
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
-            self.send_header('Pragma', 'no-cache')
-            self.send_header('Expires', '0')
-            self.end_headers()
+            try:
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+                self.send_header('Pragma', 'no-cache')
+                self.send_header('Expires', '0')
+                self.end_headers()
 
-            if session_config["live_mode"]:
-                data = get_tradelocker_data()
-            else:
-                data = get_mock_summary_data()
+                if session_config["live_mode"]:
+                    data = get_tradelocker_data()
+                else:
+                    data = get_mock_summary_data()
 
-            self.wfile.write(json.dumps(data).encode('utf-8'))
+                self.wfile.write(json.dumps(data).encode('utf-8'))
+            except (BrokenPipeError, ConnectionResetError):
+                pass
             return
 
         clean_path = self.path.split('?')[0]
@@ -947,12 +958,15 @@ class TradeLockerHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
         file_path = os.path.join(PUBLIC_DIR, clean_path.lstrip('/'))
         if os.path.exists(file_path) and os.path.isfile(file_path):
-            self.send_response(200)
-            mime_type, _ = mimetypes.guess_type(file_path)
-            self.send_header('Content-Type', mime_type or 'text/html')
-            self.end_headers()
-            with open(file_path, 'rb') as f:
-                self.wfile.write(f.read())
+            try:
+                self.send_response(200)
+                mime_type, _ = mimetypes.guess_type(file_path)
+                self.send_header('Content-Type', mime_type or 'text/html')
+                self.end_headers()
+                with open(file_path, 'rb') as f:
+                    self.wfile.write(f.read())
+            except (BrokenPipeError, ConnectionResetError):
+                pass
         else:
             self.send_response(404)
             self.end_headers()
