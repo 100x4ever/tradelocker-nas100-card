@@ -23,7 +23,7 @@ session_config = {
     "password": "Pook&Buh9",
     "server": "HEROFX",
     "environment": "live",
-    "target_acc_id": "814241",
+    "target_acc_id": "551136",
     "token": None,
     "token_time": 0,
     "acc_id": None,
