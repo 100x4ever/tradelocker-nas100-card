@@ -176,9 +176,9 @@ def calculate_stochastic(bars, k_period, k_slowing, d_smoothing):
     }
 
 def fetch_live_stochastics(auth_headers, base_url):
-    """Fetch 5m NAS100 bars (cached for 60s to prevent rate limits) and calculate Fast (7,3,3) & Heavy (40,1,4) in real-time."""
+    """Fetch 5m NAS100 bars (cached for 5s for real-time 5s candle updates) and calculate Fast (7,3,3) & Heavy (40,1,4)."""
     now = time.time()
-    if bars_cache["bars"] and (now - bars_cache["last_fetch"]) < 60.0:
+    if bars_cache["bars"] and (now - bars_cache["last_fetch"]) < 5.0:
         bars = bars_cache["bars"]
     else:
         now_ms = int(now * 1000)
@@ -601,6 +601,23 @@ def get_tradelocker_data(retry_on_401=True):
 
         # AUTOMATIC 24/7 AUTO STOP LOSS LADDER GUARDIAN
         check_and_apply_auto_stoploss(open_positions, open_pnl_by_inst["NAS100"])
+
+        # Dynamically tick the open 5m candle bar's Close, High, and Low in real-time
+        if open_positions and latest_5m_bars:
+            p = open_positions[0]
+            entry = float(p.get("avgPrice") or 0.0)
+            qty = float(p.get("qty") or 0.01)
+            unrealized = float(p.get("unrealizedPl") or 0.0)
+            side = str(p.get("side", "buy")).lower()
+            if entry > 0 and qty > 0:
+                calc_p = entry + (unrealized / qty) if side == 'buy' else entry - (unrealized / qty)
+                calc_p = round(calc_p, 1)
+                bars_copy = [dict(b) for b in latest_5m_bars]
+                last_b = bars_copy[-1]
+                last_b['c'] = calc_p
+                if 'h' in last_b: last_b['h'] = max(float(last_b['h']), calc_p)
+                if 'l' in last_b: last_b['l'] = min(float(last_b['l']), calc_p)
+                latest_5m_bars = bars_copy
 
         metrics = meta_cache.get("metrics") or {
             "OVERALL": {"pnl": 0.0, "winRate": 0.0, "profitFactor": 0.0, "total": 0, "wins": 0, "losses": 0, "lots": 0.0},
