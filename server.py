@@ -392,29 +392,13 @@ def execute_patch_stoploss_for_position(target_pos, loss_amount):
 def check_and_apply_auto_stoploss(open_positions, nas_open_pnl):
     """
     Automatic 24/7 Background Stop Loss Escalation Ladder:
-    - Initial Placement: Auto-attach -$10.00 Stop Loss on new orders
-    - $10 PnL: Move to +$5 Stop Loss
-    - $20 PnL: Move to +$15 Stop Loss
-    - $25 PnL: Move to +$20 Stop Loss
-    - $30 PnL: Move to +$25 Stop Loss
-    - $35 PnL: Move to +$30 Stop Loss
-    - $40 PnL: Move to +$35 Stop Loss
-    - $45 PnL: Move to +$40 Stop Loss
-    - $50 PnL: Move to +$45 Stop Loss
-    - $55+ PnL: Move to +$50 Stop Loss (Continuous trailing above $55)
+    - Order Fill: Auto-attach -$10.00 initial Stop Loss risk cap
+    - +$5 PnL:  Move to $0.00 (Break Even) Stop Loss
+    - +$10 PnL: Move to +$5.00 Stop Loss
+    - +$15 PnL: Move to +$10.00 Stop Loss
+    - +$20 PnL: Move to +$15.00 Stop Loss
+    - Increments of $5 continuing indefinitely (+$25 -> +$20, +$30 -> +$25, etc.)
     """
-    SL_LADDER = [
-        (55.0, 50.0),
-        (50.0, 45.0),
-        (45.0, 40.0),
-        (40.0, 35.0),
-        (35.0, 30.0),
-        (30.0, 25.0),
-        (25.0, 20.0),
-        (20.0, 15.0),
-        (10.0, 5.0)
-    ]
-
     for pos in open_positions:
         p_id = str(pos.get("id") or pos.get("positionId"))
         if not p_id:
@@ -436,21 +420,16 @@ def check_and_apply_auto_stoploss(open_positions, nas_open_pnl):
 
         target_sl_amount = None
 
-        # Check ladder thresholds
-        for pnl_thresh, sl_amt in SL_LADDER:
-            if effective_pnl >= pnl_thresh:
-                target_sl_amount = sl_amt
-                break
-
-        # Dynamic trailing for PnL > 55.0
-        if effective_pnl > 55.0:
-            dynamic_target = round(effective_pnl - 5.0, 1)
-            if target_sl_amount is None or dynamic_target > target_sl_amount:
-                target_sl_amount = dynamic_target
+        # Continuous $5 increment escalation ladder:
+        # +$5 PnL -> $0 (Break Even), +$10 -> +$5, +$15 -> +$10, +$20 -> +$15, etc.
+        if effective_pnl >= 5.0:
+            step = int(effective_pnl // 5.0)
+            target_sl_amount = float((step - 1) * 5.0)
 
         if target_sl_amount is not None:
             if current_locked is None or target_sl_amount > current_locked:
-                print(f"[{time.strftime('%H:%M:%S')}] [AUTO SL LADDER] PnL reached +${effective_pnl:.2f}! Auto-moving Stop Loss up to +${target_sl_amount:.2f} on position #{p_id}")
+                lbl = "Break Even ($0)" if target_sl_amount == 0.0 else f"+${target_sl_amount:.2f}"
+                print(f"[{time.strftime('%H:%M:%S')}] [AUTO SL LADDER] PnL reached +${effective_pnl:.2f}! Auto-moving Stop Loss up to {lbl} on position #{p_id}")
                 ok, msg = execute_patch_stoploss_for_position(pos, target_sl_amount)
                 if ok:
                     highest_sl_locked[p_id] = target_sl_amount
