@@ -325,7 +325,7 @@ def get_default_stochastics():
         "stoch_heavy": {"k": 44.6, "d": 44.6, "status": "NEUTRAL", "class": "neutral"}
     }
 
-def execute_patch_stoploss_for_position(target_pos, loss_amount):
+def execute_patch_stoploss_for_position(target_pos, loss_amount, exact_price=None, price_label=None):
     """Execute direct HTTP PATCH /trade/positions/{p_id} to set Stop Loss without calling get_tradelocker_data()."""
     p_id = str(target_pos.get("id") or target_pos.get("positionId"))
     side = str(target_pos.get("side", "buy")).lower()
@@ -335,27 +335,33 @@ def execute_patch_stoploss_for_position(target_pos, loss_amount):
     if not p_id or entry_p <= 0 or qty <= 0:
         return False, "Invalid position details"
 
-    try:
-        val_amt = float(loss_amount)
-    except (ValueError, TypeError):
-        val_amt = 0.0
-
-    if val_amt == 0.0 or str(loss_amount).lower() == "be":
-        sl_price = round(entry_p, 2)
-        label = "Break Even"
-    elif val_amt > 0:
-        if side == "buy":
-            sl_price = round(entry_p + (val_amt / qty), 2)
-        else:
-            sl_price = round(entry_p - (val_amt / qty), 2)
-        label = f"+${val_amt:.2f}"
+    if exact_price is not None:
+        sl_price = round(exact_price, 2)
+        diff_val = (sl_price - entry_p) * qty if side == "buy" else (entry_p - sl_price) * qty
+        val_amt = round(diff_val, 2)
+        label = price_label or f"Price ${sl_price:.2f}"
     else:
-        abs_val = abs(val_amt)
-        if side == "buy":
-            sl_price = round(entry_p - (abs_val / qty), 2)
+        try:
+            val_amt = float(loss_amount)
+        except (ValueError, TypeError):
+            val_amt = 0.0
+
+        if val_amt == 0.0 or str(loss_amount).lower() == "be":
+            sl_price = round(entry_p, 2)
+            label = "Break Even"
+        elif val_amt > 0:
+            if side == "buy":
+                sl_price = round(entry_p + (val_amt / qty), 2)
+            else:
+                sl_price = round(entry_p - (val_amt / qty), 2)
+            label = f"+${val_amt:.2f}"
         else:
-            sl_price = round(entry_p + (abs_val / qty), 2)
-        label = f"-${abs_val:.2f}"
+            abs_val = abs(val_amt)
+            if side == "buy":
+                sl_price = round(entry_p - (abs_val / qty), 2)
+            else:
+                sl_price = round(entry_p + (abs_val / qty), 2)
+            label = f"-${abs_val:.2f}"
 
     env = session_config["environment"]
     base_url = f"https://{env}.tradelocker.com/backend-api"
@@ -379,8 +385,8 @@ def execute_patch_stoploss_for_position(target_pos, loss_amount):
 
     try:
         req = urllib.request.Request(url, data=patch_body, headers=headers, method="PATCH")
-        with urllib.request.urlopen(req, context=ctx) as resp:
-            print(f"[{time.strftime('%H:%M:%S')}] SUCCESS: Set StopLoss=${sl_price} ({label}) on Position #{p_id}!")
+        with tradelocker_request(req) as resp:
+            print(f"[{time.strftime('%H:%M:%S')}] SUCCESS: Set StopLoss=${sl_price:.2f} ({label}) on Position #{p_id}!")
             highest_sl_locked[p_id] = val_amt
             live_cache["data"] = None
             live_cache["last_fetch"] = 0
@@ -389,10 +395,32 @@ def execute_patch_stoploss_for_position(target_pos, loss_amount):
         print(f"Error executing patch stop loss on position {p_id}: {e}")
         return False, str(e)
 
+def get_4candle_swing_sl(side, entry_price):
+    """Calculate Stop Loss price based on 4-candle lookback swing low (for buy) or swing high (for sell)."""
+    bars = bars_cache.get("bars") or []
+    lookback = bars[-4:] if len(bars) >= 4 else bars
+    if not lookback:
+        return None, None
+
+    if side == "buy":
+        swing_low = min(float(b.get("l") or b.get("low") or entry_price) for b in lookback)
+        if swing_low >= entry_price:
+            sl_price = round(entry_price - 10.0, 2)
+        else:
+            sl_price = round(swing_low, 2)
+        return sl_price, f"4-Candle Swing Low (${sl_price:.2f})"
+    else:
+        swing_high = max(float(b.get("h") or b.get("high") or entry_price) for b in lookback)
+        if swing_high <= entry_price:
+            sl_price = round(entry_price + 10.0, 2)
+        else:
+            sl_price = round(swing_high, 2)
+        return sl_price, f"4-Candle Swing High (${sl_price:.2f})"
+
 def check_and_apply_auto_stoploss(open_positions, nas_open_pnl):
     """
     Automatic 24/7 Background Stop Loss Escalation Ladder:
-    - Order Fill: Auto-attach -$10.00 initial Stop Loss risk cap
+    - Order Fill: Auto-attach initial Stop Loss at 4-Candle Lookback Swing High/Low
     - +$5 PnL:  Move to $0.00 (Break Even) Stop Loss
     - +$10 PnL: Move to +$5.00 Stop Loss
     - +$15 PnL: Move to +$10.00 Stop Loss
@@ -435,10 +463,13 @@ def check_and_apply_auto_stoploss(open_positions, nas_open_pnl):
                     highest_sl_locked[p_id] = target_sl_amount
 
         elif not has_sl and current_locked is None:
-            print(f"[{time.strftime('%H:%M:%S')}] [AUTO SL INITIAL] New Position #{p_id} detected! Auto-attaching -$10.00 initial Stop Loss risk cap!")
-            ok, msg = execute_patch_stoploss_for_position(pos, -10.0)
-            if ok:
-                highest_sl_locked[p_id] = -10.0
+            swing_sl_price, swing_label = get_4candle_swing_sl(side, entry_p)
+            if swing_sl_price is not None:
+                print(f"[{time.strftime('%H:%M:%S')}] [AUTO SL INITIAL] New Position #{p_id} detected! Auto-attaching 4-Candle Swing Hi/Lo SL @ ${swing_sl_price:.2f}")
+                ok, msg = execute_patch_stoploss_for_position(pos, loss_amount=None, exact_price=swing_sl_price, price_label=swing_label)
+            else:
+                print(f"[{time.strftime('%H:%M:%S')}] [AUTO SL INITIAL] New Position #{p_id} detected! Auto-attaching -$10.00 initial Stop Loss risk cap!")
+                ok, msg = execute_patch_stoploss_for_position(pos, -10.0)
 
 def background_auto_sl_monitor_thread():
     """Background daemon thread running 24/7 on Railway server to manage Stop Losses automatically."""
