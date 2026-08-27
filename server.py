@@ -421,11 +421,12 @@ def check_and_apply_auto_stoploss(open_positions, nas_open_pnl):
     """
     Automatic 24/7 Background Stop Loss Escalation Ladder:
     - Order Fill: Auto-attach initial Stop Loss at 4-Candle Lookback Swing High/Low
-    - +$5 PnL:  Move to $0.00 (Break Even) Stop Loss
-    - +$10 PnL: Move to +$5.00 Stop Loss
-    - +$15 PnL: Move to +$10.00 Stop Loss
-    - +$20 PnL: Move to +$15.00 Stop Loss
-    - Increments of $5 continuing indefinitely (+$25 -> +$20, +$30 -> +$25, etc.)
+    - +$3 PnL:  Move to $0.00 (Break Even) Stop Loss
+    - +$6 PnL:  Move to +$3.00 Stop Loss
+    - +$9 PnL:  Move to +$6.00 Stop Loss
+    - +$12 PnL: Move to +$9.00 Stop Loss
+    - +$15 PnL: Move to +$12.00 Stop Loss
+    - Increments of $3 continuing indefinitely (+$18 -> +$15, +$21 -> +$18, etc.)
     """
     for pos in open_positions:
         p_id = str(pos.get("id") or pos.get("positionId"))
@@ -448,11 +449,11 @@ def check_and_apply_auto_stoploss(open_positions, nas_open_pnl):
 
         target_sl_amount = None
 
-        # Continuous $5 increment escalation ladder:
-        # +$5 PnL -> $0 (Break Even), +$10 -> +$5, +$15 -> +$10, +$20 -> +$15, etc.
-        if effective_pnl >= 5.0:
-            step = int(effective_pnl // 5.0)
-            target_sl_amount = float((step - 1) * 5.0)
+        # Continuous $3 increment escalation ladder:
+        # +$3 PnL -> $0 (Break Even), +$6 -> +$3, +$9 -> +$6, +$12 -> +$9, +$15 -> +$12, etc.
+        if effective_pnl >= 3.0:
+            step = int(effective_pnl // 3.0)
+            target_sl_amount = float((step - 1) * 3.0)
 
         if target_sl_amount is not None:
             if current_locked is None or target_sl_amount > current_locked:
