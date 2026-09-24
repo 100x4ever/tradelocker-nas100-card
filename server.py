@@ -16,7 +16,7 @@ ctx = ssl.create_default_context()
 ctx.check_hostname = False
 ctx.verify_mode = ssl.CERT_NONE
 
-# User Session State (Locked to LIVE Account 814241)
+# User Session State (Multi-Account Live Protection)
 session_config = {
     "live_mode": True,
     "email": "jcollins92989@gmail.com",
@@ -27,7 +27,8 @@ session_config = {
     "token": None,
     "token_time": 0,
     "acc_id": None,
-    "acc_num": None
+    "acc_num": None,
+    "all_accounts": []
 }
 
 # Cache for static metadata (TTL = 60s)
@@ -103,6 +104,7 @@ def get_jwt_token():
         req_acc = urllib.request.Request(f"{base_url}/auth/jwt/all-accounts", headers=auth_headers)
         with tradelocker_request(req_acc) as r_acc:
             accounts_data = json.loads(r_acc.read().decode('utf-8')).get("accounts", [])
+            session_config["all_accounts"] = accounts_data
             target_id = str(session_config["target_acc_id"])
             selected = None
             for a in accounts_data:
@@ -115,7 +117,7 @@ def get_jwt_token():
                 session_config["acc_id"] = str(selected.get("id"))
                 session_config["acc_num"] = str(selected.get("accNum", 18))
 
-        print(f"[{time.strftime('%H:%M:%S')}] TradeLocker Auth Success! accId={session_config['acc_id']}, accNum={session_config['acc_num']}")
+        print(f"[{time.strftime('%H:%M:%S')}] TradeLocker Auth Success! Monitoring {len(accounts_data)} Live Account(s) under login.")
         return token
 
 def calculate_stochastic(bars, k_period, k_slowing, d_smoothing):
@@ -370,14 +372,14 @@ def execute_patch_stoploss_for_position(target_pos, loss_amount, exact_price=Non
     if not token:
         token = get_jwt_token()
 
-    acc_num = session_config["acc_num"] or "18"
+    acc_num = str(target_pos.get("accNum") or session_config.get("acc_num") or "18")
 
     headers = {
         'Content-Type': 'application/json',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0 Safari/537.36',
         'Accept': 'application/json',
         'Authorization': f"Bearer {token}",
-        'accNum': str(acc_num)
+        'accNum': acc_num
     }
 
     patch_body = json.dumps({"stopLoss": sl_price}).encode('utf-8')
@@ -503,35 +505,62 @@ def get_tradelocker_data(retry_on_401=True):
         if not token or (now - session_config.get("token_time", 0)) > 300:
             token = get_jwt_token()
 
-        acc_id = session_config["acc_id"] or "814241"
-        acc_num = session_config["acc_num"] or "18"
+        accounts_list = session_config.get("all_accounts") or []
+        if not accounts_list:
+            accounts_list = [{"id": session_config["acc_id"] or "814241", "accNum": session_config["acc_num"] or "18"}]
 
-        auth_headers = dict(headers)
-        auth_headers["Authorization"] = f"Bearer {token}"
-        auth_headers["accNum"] = str(acc_num)
+        auth_headers_base = dict(headers)
+        auth_headers_base["Authorization"] = f"Bearer {token}"
 
-        refresh_metadata(auth_headers, base_url, acc_id)
+        primary_acc_id = session_config["acc_id"] or "814241"
+        refresh_metadata(dict(auth_headers_base, accNum=str(session_config["acc_num"] or "18")), base_url, primary_acc_id)
 
         config = meta_cache.get("config") or {}
         inst_map = meta_cache.get("inst_map") or {}
 
-        # 1. Real-Time Account State
-        req = urllib.request.Request(f"{base_url}/trade/accounts/{acc_id}/state", headers=auth_headers)
-        with tradelocker_request(req) as resp:
-            state_data = json.loads(resp.read().decode('utf-8')).get("d", {}).get("accountDetailsData", [])
+        # 4. Real-Time Stochastics Calculation & 5m Bars (using primary account header)
+        stoch_headers = dict(auth_headers_base, accNum=str(session_config["acc_num"] or "18"))
+        stochastics = fetch_live_stochastics(stoch_headers, base_url)
+        latest_5m_bars = []
+        if bars_cache.get("bars") and len(bars_cache["bars"]) >= 3:
+            latest_5m_bars = bars_cache["bars"][-3:]
 
-        # 2. Real-Time Positions
-        req = urllib.request.Request(f"{base_url}/trade/accounts/{acc_id}/positions", headers=auth_headers)
-        with tradelocker_request(req) as resp:
-            positions_data = json.loads(resp.read().decode('utf-8')).get("d", {}).get("positions", [])
+        pos_cols = [c["id"] for c in config.get("positionsConfig", {}).get("columns", [])]
+        acc_cols = [c["id"] for c in config.get("accountDetailsConfig", {}).get("columns", [])]
 
-        # 3. Active Pending Orders (Cached for 10s to resolve SL/TP price levels)
-        if (now - orders_cache["last_fetch"]) < 10.0 and orders_cache["sl_tp_map"]:
-            sl_tp_map = orders_cache["sl_tp_map"]
-        else:
+        total_balance = 0.0
+        total_open_pnl = 0.0
+        open_positions = []
+        open_pnl_by_inst = {"NAS100": 0.0, "EURUSD": 0.0, "OTHER": 0.0}
+        monitored_accounts_info = []
+
+        # Iterate over ALL active accounts under user login
+        for acc in accounts_list:
+            curr_acc_id = str(acc.get("id"))
+            curr_acc_num = str(acc.get("accNum", 18))
+            curr_auth_headers = dict(auth_headers_base)
+            curr_auth_headers["accNum"] = curr_acc_num
+
+            # 1. Account State per Account
+            acc_bal = float(acc.get("accountBalance") or 0.0)
+            acc_open_pnl = 0.0
+            try:
+                req = urllib.request.Request(f"{base_url}/trade/accounts/{curr_acc_id}/state", headers=curr_auth_headers)
+                with tradelocker_request(req) as resp:
+                    state_data = json.loads(resp.read().decode('utf-8')).get("d", {}).get("accountDetailsData", [])
+                    account_state = dict(zip(acc_cols, state_data)) if acc_cols and state_data else {}
+                    acc_bal = float(account_state.get("balance") or (state_data[0] if len(state_data) > 0 else acc_bal))
+                    acc_open_pnl = float(account_state.get("openNetPnL") or (state_data[23] if len(state_data) > 23 else 0.0))
+            except Exception:
+                pass
+
+            total_balance += acc_bal
+            total_open_pnl += acc_open_pnl
+
+            # 2. Orders SL/TP price mapping per Account
             sl_tp_map = {}
             try:
-                req_ord = urllib.request.Request(f"{base_url}/trade/accounts/{acc_id}/orders", headers=auth_headers)
+                req_ord = urllib.request.Request(f"{base_url}/trade/accounts/{curr_acc_id}/orders", headers=curr_auth_headers)
                 with tradelocker_request(req_ord) as resp_ord:
                     orders_data = json.loads(resp_ord.read().decode('utf-8')).get("d", {}).get("orders", [])
                     orders_cols = [c["id"] for c in config.get("ordersConfig", {}).get("columns", [])] if config.get("ordersConfig") else []
@@ -540,77 +569,73 @@ def get_tradelocker_data(retry_on_401=True):
                         o_id = str(o_dict.get("id") or (o[0] if len(o)>0 else ""))
                         stop_p = o_dict.get("stopPrice") or (o[10] if len(o)>10 else None)
                         limit_p = o_dict.get("price") or (o[9] if len(o)>9 else None)
-                        
                         price_val = None
                         if stop_p and str(stop_p) != "None":
                             price_val = float(stop_p)
                         elif limit_p and str(limit_p) != "None":
                             price_val = float(limit_p)
-
                         if o_id and price_val is not None:
                             sl_tp_map[o_id] = price_val
-                    orders_cache["sl_tp_map"] = sl_tp_map
-                    orders_cache["last_fetch"] = now
             except Exception:
                 pass
 
-        # 4. Real-Time Stochastics Calculation & 5m Bars
-        stochastics = fetch_live_stochastics(auth_headers, base_url)
-        latest_5m_bars = []
-        if bars_cache.get("bars") and len(bars_cache["bars"]) >= 3:
-            latest_5m_bars = bars_cache["bars"][-3:]
+            # 3. Positions per Account
+            acc_positions_count = 0
+            try:
+                req_pos = urllib.request.Request(f"{base_url}/trade/accounts/{curr_acc_id}/positions", headers=curr_auth_headers)
+                with tradelocker_request(req_pos) as resp:
+                    positions_data = json.loads(resp.read().decode('utf-8')).get("d", {}).get("positions", [])
+                    acc_positions_count = len(positions_data)
 
-        # Map Account State
-        acc_cols = [c["id"] for c in config.get("accountDetailsConfig", {}).get("columns", [])]
-        account_state = dict(zip(acc_cols, state_data)) if acc_cols and state_data else {}
+                    for pos in positions_data:
+                        p_dict = dict(zip(pos_cols, pos)) if pos_cols else {"unrealizedPl": pos[9] if len(pos)>9 else 0.0}
+                        p_id = str(p_dict.get("id") or (pos[0] if len(pos)>0 else ""))
+                        inst_id = str(p_dict.get("tradableInstrumentId") or (pos[1] if len(pos)>1 else ""))
+                        inst_name = inst_map.get(inst_id, "NAS100" if inst_id=="3884" else f"Inst-{inst_id}")
+                        side = str(p_dict.get("side") or (pos[3] if len(pos)>3 else "buy"))
+                        qty = float(p_dict.get("qty") or (pos[4] if len(pos)>4 else 0.01))
+                        entry_price = float(p_dict.get("avgPrice") or (pos[5] if len(pos)>5 else 0.0))
+                        unrealized = float(p_dict.get("unrealizedPl") or (pos[9] if len(pos)>9 else 0.0))
+                        sl_id = str(p_dict.get("stopLossId") or (pos[6] if len(pos)>6 else ""))
+                        tp_id = str(p_dict.get("takeProfitId") or (pos[7] if len(pos)>7 else ""))
+                        trailing_offset = p_dict.get("trailingOffset")
 
-        balance = float(account_state.get("balance") or (state_data[0] if len(state_data) > 0 else 500.00))
-        open_net_pnl = float(account_state.get("openNetPnL") or (state_data[23] if len(state_data) > 23 else 0.0))
-        equity = balance + open_net_pnl
+                        stop_loss_price = sl_tp_map.get(sl_id)
+                        take_profit_price = sl_tp_map.get(tp_id)
 
-        # Map Positions
-        pos_cols = [c["id"] for c in config.get("positionsConfig", {}).get("columns", [])]
-        open_positions = []
-        open_pnl_by_inst = {"NAS100": 0.0, "EURUSD": 0.0, "OTHER": 0.0}
+                        p_dict["id"] = p_id
+                        p_dict["accId"] = curr_acc_id
+                        p_dict["accNum"] = curr_acc_num
+                        p_dict["instrumentName"] = inst_name
+                        p_dict["side"] = side
+                        p_dict["qty"] = qty
+                        p_dict["avgPrice"] = entry_price
+                        p_dict["unrealizedPl"] = unrealized
+                        p_dict["stopLossPrice"] = stop_loss_price
+                        p_dict["takeProfitPrice"] = take_profit_price
+                        p_dict["stopLossAmount"] = highest_sl_locked.get(p_id)
+                        p_dict["trailingOffset"] = trailing_offset
 
-        for pos in positions_data:
-            p_dict = dict(zip(pos_cols, pos)) if pos_cols else {"unrealizedPl": pos[9] if len(pos)>9 else 0.0}
-            p_id = str(p_dict.get("id") or (pos[0] if len(pos)>0 else ""))
-            inst_id = str(p_dict.get("tradableInstrumentId") or (pos[1] if len(pos)>1 else ""))
-            inst_name = inst_map.get(inst_id, "NAS100" if inst_id=="3884" else f"Inst-{inst_id}")
-            side = str(p_dict.get("side") or (pos[3] if len(pos)>3 else "buy"))
-            qty = float(p_dict.get("qty") or (pos[4] if len(pos)>4 else 0.01))
-            entry_price = float(p_dict.get("avgPrice") or (pos[5] if len(pos)>5 else 0.0))
-            unrealized = float(p_dict.get("unrealizedPl") or (pos[9] if len(pos)>9 else 0.0))
-            sl_id = str(p_dict.get("stopLossId") or (pos[6] if len(pos)>6 else ""))
-            tp_id = str(p_dict.get("takeProfitId") or (pos[7] if len(pos)>7 else ""))
-            trailing_offset = p_dict.get("trailingOffset")
+                        open_positions.append(p_dict)
 
-            # Resolve actual Price Levels for SL & TP from pending orders map
-            stop_loss_price = sl_tp_map.get(sl_id)
-            take_profit_price = sl_tp_map.get(tp_id)
+                        if "NAS" in inst_name.upper() or "US100" in inst_name.upper() or inst_id == "3884":
+                            open_pnl_by_inst["NAS100"] += unrealized
+                        elif "EURUSD" in inst_name.upper():
+                            open_pnl_by_inst["EURUSD"] += unrealized
+                        else:
+                            open_pnl_by_inst["OTHER"] += unrealized
+            except Exception:
+                pass
 
-            p_dict["id"] = p_id
-            p_dict["instrumentName"] = inst_name
-            p_dict["side"] = side
-            p_dict["qty"] = qty
-            p_dict["avgPrice"] = entry_price
-            p_dict["unrealizedPl"] = unrealized
-            p_dict["stopLossPrice"] = stop_loss_price
-            p_dict["takeProfitPrice"] = take_profit_price
-            p_dict["stopLossAmount"] = highest_sl_locked.get(p_id)
-            p_dict["trailingOffset"] = trailing_offset
+            monitored_accounts_info.append({
+                "accId": curr_acc_id,
+                "accNum": curr_acc_num,
+                "balance": round(acc_bal, 2),
+                "openPnL": round(acc_open_pnl, 2),
+                "positionsCount": acc_positions_count
+            })
 
-            open_positions.append(p_dict)
-
-            if "NAS" in inst_name.upper() or "US100" in inst_name.upper() or inst_id == "3884":
-                open_pnl_by_inst["NAS100"] += unrealized
-            elif "EURUSD" in inst_name.upper():
-                open_pnl_by_inst["EURUSD"] += unrealized
-            else:
-                open_pnl_by_inst["OTHER"] += unrealized
-
-        # AUTOMATIC 24/7 AUTO STOP LOSS LADDER GUARDIAN
+        # AUTOMATIC 24/7 AUTO STOP LOSS LADDER GUARDIAN (Applied across ALL open positions)
         check_and_apply_auto_stoploss(open_positions, open_pnl_by_inst["NAS100"])
 
         # Dynamically tick the open 5m candle bar's Close, High, and Low in real-time
@@ -630,6 +655,8 @@ def get_tradelocker_data(retry_on_401=True):
                 if 'l' in last_b: last_b['l'] = min(float(last_b['l']), calc_p)
                 latest_5m_bars = bars_copy
 
+        total_equity = total_balance + total_open_pnl
+
         metrics = meta_cache.get("metrics") or {
             "OVERALL": {"pnl": 0.0, "winRate": 0.0, "profitFactor": 0.0, "total": 0, "wins": 0, "losses": 0, "lots": 0.0},
             "NAS100": {"pnl": 0.0, "winRate": 0.0, "profitFactor": 0.0, "total": 0, "wins": 0, "losses": 0, "lots": 0.0}
@@ -637,15 +664,16 @@ def get_tradelocker_data(retry_on_401=True):
 
         result_data = {
             "account": {
-                "accId": acc_id,
-                "accNum": acc_num,
+                "accId": session_config["acc_id"],
+                "accNum": session_config["acc_num"],
                 "server": session_config["server"],
                 "environment": env,
-                "balance": round(balance, 2),
-                "equity": round(equity, 2),
-                "openPnL": round(open_net_pnl, 2),
+                "balance": round(total_balance, 2),
+                "equity": round(total_equity, 2),
+                "openPnL": round(total_open_pnl, 2),
                 "positionsCount": len(open_positions),
-                "serverTime": int(time.time())
+                "serverTime": int(time.time()),
+                "monitoredAccounts": monitored_accounts_info
             },
             "latest5mBars": latest_5m_bars,
             "openPnLByInstrument": open_pnl_by_inst,
