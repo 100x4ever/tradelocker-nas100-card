@@ -16,14 +16,14 @@ ctx = ssl.create_default_context()
 ctx.check_hostname = False
 ctx.verify_mode = ssl.CERT_NONE
 
-# User Session State (Locked to LIVE Account 856835)
+# User Session State (Locked to LIVE Account 551136)
 session_config = {
     "live_mode": True,
     "email": "jcollins92989@gmail.com",
     "password": "Pook&Buh9",
     "server": "HEROFX",
     "environment": "live",
-    "target_acc_id": "856835",
+    "target_acc_id": "551136",
     "token": None,
     "token_time": 0,
     "acc_id": None,
@@ -115,7 +115,7 @@ def get_jwt_token():
                 selected = accounts_data[0]
             if selected:
                 session_config["acc_id"] = str(selected.get("id"))
-                session_config["acc_num"] = str(selected.get("accNum", 19))
+                session_config["acc_num"] = str(selected.get("accNum", 1))
 
         print(f"[{time.strftime('%H:%M:%S')}] TradeLocker Auth Success! Locked to Live Account ID={session_config['acc_id']}, accNum={session_config['acc_num']}")
         return token
@@ -505,8 +505,8 @@ def get_tradelocker_data(retry_on_401=True):
         if not token or (now - session_config.get("token_time", 0)) > 300:
             token = get_jwt_token()
 
-        acc_id = session_config["acc_id"] or "856835"
-        acc_num = session_config["acc_num"] or "19"
+        acc_id = session_config["acc_id"] or "551136"
+        acc_num = session_config["acc_num"] or "1"
 
         auth_headers = dict(headers)
         auth_headers["Authorization"] = f"Bearer {token}"
